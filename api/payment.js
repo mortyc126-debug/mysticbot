@@ -58,6 +58,7 @@ const createYooPayment = async (amount, description, metadata, returnUrl, paymen
       "Idempotence-Key": idempotenceKey,
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
   });
 
   const data = await res.json();
@@ -69,6 +70,7 @@ const verifyYooPayment = async (paymentId) => {
   try {
     const res = await fetch(`https://api.yookassa.ru/v3/payments/${paymentId}`, {
       headers: { "Authorization": `Basic ${yooCredentials()}` },
+      signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) return null;
     return await res.json();
@@ -112,28 +114,48 @@ const removeLuck = async (db, telegramId, luck) => {
   console.log(`[payment] -${luck} удачи для ${telegramId} (возврат)`);
 };
 
+// Валидация метаданных: не доверяем webhook-данным, сверяем с серверными прайсами.
+// Если metadata.package_id / metadata.tier не совпадают ни с одним прайсом — отклоняем.
+const resolvePaymentValues = (meta, paidAmount) => {
+  if (meta.type === "subscription") {
+    const plan = SUBSCRIPTION_PRICES[meta.tier];
+    if (!plan) return null; // неизвестный тариф
+    return { type: "subscription", tier: plan.tier, days: plan.days };
+  }
+  if (meta.type === "luck") {
+    const pkg = LUCK_PACKAGES[meta.package_id];
+    if (!pkg) return null; // неизвестный пакет
+    return { type: "luck", luck: pkg.luck };
+  }
+  return null;
+};
+
 // Идемпотентная активация платежа: проверяет processed_payments чтобы
 // не начислять повторно. Вызывается и из вебхука, и из GET ?status=
 // (фоллбэк на случай если вебхук ЮKassa не дошёл или упал).
-const ensurePaymentApplied = async (db, paymentId, telegramId, meta) => {
+const ensurePaymentApplied = async (db, paymentId, telegramId, meta, paidAmount) => {
+  // Валидируем метаданные по серверным прайсам (а не доверяем webhook)
+  const resolved = resolvePaymentValues(meta, paidAmount);
+  if (!resolved) {
+    console.warn(`[payment] отклонены неизвестные metadata: type=${meta.type} tier=${meta.tier} pkg=${meta.package_id} (${paymentId})`);
+    return;
+  }
+
   await upsertUser(db, telegramId, (cur) => {
     const processed = cur.processed_payments || [];
     if (processed.includes(paymentId)) return cur; // уже обработан
 
     const updates = { ...cur, processed_payments: [...processed, paymentId].slice(-50) };
 
-    if (meta.type === "subscription") {
+    if (resolved.type === "subscription") {
       const now  = Date.now();
-      const tier = meta.tier || "vip";
-      const days = parseInt(meta.days || "30", 10);
       const base = Math.max(cur.subscription_until ? new Date(cur.subscription_until).getTime() : now, now);
-      updates.subscription_tier  = tier;
-      updates.subscription_until = new Date(base + days * 86400000).toISOString();
-      console.log(`[payment] ${tier} активирован для ${telegramId} (${paymentId})`);
-    } else if (meta.type === "luck") {
-      const luck = parseInt(meta.luck || "50", 10);
-      updates.luck_points = (cur.luck_points || 0) + luck;
-      console.log(`[payment] +${luck} удачи для ${telegramId} (${paymentId})`);
+      updates.subscription_tier  = resolved.tier;
+      updates.subscription_until = new Date(base + resolved.days * 86400000).toISOString();
+      console.log(`[payment] ${resolved.tier} активирован для ${telegramId} (${paymentId})`);
+    } else if (resolved.type === "luck") {
+      updates.luck_points = (cur.luck_points || 0) + resolved.luck;
+      console.log(`[payment] +${resolved.luck} удачи для ${telegramId} (${paymentId})`);
     }
 
     return updates;
@@ -172,7 +194,8 @@ export default async function handler(req, res) {
       if (telegramId) {
         try {
           const db = getSupabase();
-          await ensurePaymentApplied(db, payment.id, telegramId, meta);
+          const paidAmount = parseFloat(payment.amount?.value || "0");
+          await ensurePaymentApplied(db, payment.id, telegramId, meta, paidAmount);
         } catch (e) {
           console.error("[payment-status] ensurePaymentApplied:", e.message);
         }
@@ -247,7 +270,8 @@ export default async function handler(req, res) {
       if (!telegramId) return res.status(200).json({ ok: false, reason: "no_telegram_id" });
 
       const db = getSupabase();
-      await ensurePaymentApplied(db, paymentId, telegramId, meta);
+      const paidAmount = parseFloat(payment.amount?.value || "0");
+      await ensurePaymentApplied(db, paymentId, telegramId, meta, paidAmount);
 
       return res.status(200).json({ ok: true });
 
