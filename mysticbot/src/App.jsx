@@ -1,0 +1,201 @@
+import { useState, useEffect, useMemo } from "react";
+import { useAppState } from "./hooks/useAppState";
+import ErrorBoundary from "./components/ErrorBoundary";
+import Onboarding from "./pages/Onboarding";
+import Home from "./pages/Home";
+import Tarot from "./pages/Tarot";
+import Astrology from "./pages/Astrology";
+import DiaryPage from "./pages/DiaryPage";
+import Profile from "./pages/Profile";
+import Runes from "./pages/Runes";
+import Palmistry from "./pages/Palmistry";
+import Aura from "./pages/Aura";
+import OracleChat from "./pages/OracleChat";
+import Quizzes from "./pages/Quizzes";
+import Investigation from "./pages/Investigation";
+import BottomNav from "./components/BottomNav";
+import LuckToast from "./components/LuckToast";
+import TelegramSDK from "./api/telegram";
+import BackendAPI from "./api/backend";
+
+// ============================================================
+// TELEGRAM WEBAPP — инициализация
+// ШАГ 1: Раскомментировать в index.html:
+//   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+// ШАГ 2: TelegramSDK.init() вызывается автоматически ниже.
+// ============================================================
+
+// Страницы основной навигации (нижнее меню)
+const NAV_PAGES = { home: Home, tarot: Tarot, astrology: Astrology, diary: DiaryPage, profile: Profile };
+// Страницы второго уровня (открываются кнопками внутри приложения)
+const EXTRA_PAGES = { runes: Runes, palmistry: Palmistry, aura: Aura, oracle: OracleChat, quizzes: Quizzes, investigation: Investigation };
+const PAGES = { ...NAV_PAGES, ...EXTRA_PAGES };
+
+export default function App() {
+  const state = useAppState();
+  const { onboarding, currentPage, setCurrentPage, checkStreak } = state;
+  const [toast, setToast] = useState(null);
+
+  // Инициализация Telegram WebApp SDK + сохранение реферального кода из start_param
+  useEffect(() => {
+    TelegramSDK.init();
+    const startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+    if (startParam && /^MST-[A-Z0-9]{6}$/.test(startParam)) {
+      localStorage.setItem("pending_referral", startParam);
+    }
+  }, []);
+
+  // Стрик, сброс дневных лимитов + активация реферала после регистрации
+  useEffect(() => {
+    if (!onboarding) {
+      checkStreak();
+      // Реферал: активируется один раз сразу после завершения онбординга
+      const pendingCode = localStorage.getItem("pending_referral");
+      if (pendingCode) {
+        BackendAPI.registerReferral(pendingCode, state.user?.name || "Пользователь")
+          .then(ok => { if (ok) localStorage.removeItem("pending_referral"); })
+          .catch(() => {});
+      }
+    }
+  }, [onboarding, checkStreak]);
+
+  // Синхронизация данных из Supabase при каждом запуске (для уже зарегистрированных)
+  // Подтягиваем referral_friends, subscription_tier/until — поля которые сервер
+  // может обновить независимо от клиента (админ изменил подписку в БД, пришёл реферал и т.д.)
+  useEffect(() => {
+    if (onboarding) return;
+    BackendAPI.fetchUser().then(serverUser => {
+      if (!serverUser) return;
+      const updates = {};
+
+      // Рефералы: берём максимум из сервера и локального
+      const serverFriends = serverUser.referral_friends || [];
+      if (serverFriends.length > (state.user?.referral_friends || []).length) {
+        updates.referral_friends = serverFriends;
+      }
+
+      // Подписка: обновляем если сервер сообщает об активной подписке.
+      // Используем bestTier (не понижаем тариф): если checkPendingPayment уже поставил
+      // "premium" локально, а вебхук ещё не успел и сервер возвращает "vip" —
+      // прямая запись serverTier перезаписала бы "premium" обратно на "vip".
+      if (serverUser.subscription_tier && serverUser.subscription_tier !== "free") {
+        const until = serverUser.subscription_until ? new Date(serverUser.subscription_until) : null;
+        const stillActive = !until || until > new Date();
+        if (stillActive) {
+          const TIER_RANK = { free: 0, vip: 1, premium: 2 };
+          const serverTier = serverUser.subscription_tier;
+          const localTier  = state.user?.subscription_tier || "free";
+          const bestTier   = (TIER_RANK[serverTier] ?? 0) >= (TIER_RANK[localTier] ?? 0)
+            ? serverTier : localTier;
+          updates.subscription_tier  = bestTier;
+          updates.subscription_until = serverUser.subscription_until;
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        state.updateUser(updates);
+      }
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  if (onboarding) {
+    return (
+      <ErrorBoundary>
+        <Onboarding state={state} showToast={showToast} />
+      </ErrorBoundary>
+    );
+  }
+
+  const PageComponent = PAGES[currentPage] || Home;
+  const isNavPage = !!NAV_PAGES[currentPage];
+
+  return (
+    <ErrorBoundary>
+      <div style={styles.app}>
+        <Stars />
+        <div style={styles.pageWrap}>
+          {/* key={currentPage} запускает анимацию pageEnter при смене страницы */}
+          <div key={currentPage} style={styles.pageAnimWrap}>
+            <ErrorBoundary>
+              <PageComponent state={state} showToast={showToast} />
+            </ErrorBoundary>
+          </div>
+        </div>
+        {isNavPage && <BottomNav currentPage={currentPage} setCurrentPage={setCurrentPage} />}
+        {toast && <LuckToast message={toast} />}
+      </div>
+    </ErrorBoundary>
+  );
+}
+
+function Stars() {
+  const stars = useMemo(() =>
+    Array.from({ length: 40 }).map(() => ({
+      size: Math.random() > 0.8 ? 3 : 2,
+      left: `${Math.random() * 100}%`,
+      top: `${Math.random() * 100}%`,
+      duration: 2 + Math.random() * 4,
+      delay: Math.random() * 4,
+      op: 0.3 + Math.random() * 0.6,
+    })),
+  []);
+
+  return (
+    <div style={styles.starsWrap}>
+      {stars.map((s, i) => (
+        <div key={i} style={{
+          position: "absolute",
+          width: s.size,
+          height: s.size,
+          background: "white",
+          borderRadius: "50%",
+          left: s.left,
+          top: s.top,
+          opacity: 0,
+          animation: `twinkle ${s.duration}s ease-in-out ${s.delay}s infinite`,
+          "--op": s.op,
+        }} />
+      ))}
+    </div>
+  );
+}
+
+const styles = {
+  app: {
+    background: "var(--bg)",
+    height: "100%",          // 100% от #root (= 100dvh из CSS) — без бага адрес-бара
+    maxWidth: 430,
+    margin: "0 auto",
+    position: "relative",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+  pageWrap: {
+    flex: 1,
+    overflowY: "scroll",
+    overflowX: "hidden",
+    // BottomNav ~60px + safe-area iPhone ~34px + запас = 110px min
+    paddingBottom: "calc(110px + env(safe-area-inset-bottom, 0px))",
+    WebkitOverflowScrolling: "touch",
+    position: "relative",
+    zIndex: 1,
+  },
+  pageAnimWrap: {
+    animation: "pageEnter 0.25s ease both",
+    minHeight: "100%",
+  },
+  starsWrap: {
+    position: "fixed",
+    inset: 0,
+    pointerEvents: "none",
+    zIndex: 0,
+    maxWidth: 430,
+    margin: "0 auto",
+  },
+};

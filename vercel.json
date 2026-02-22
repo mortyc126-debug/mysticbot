@@ -1,0 +1,9 @@
+{
+  "buildCommand": "cd mysticbot && npm install && npm run build",
+  "outputDirectory": "mysticbot/dist",
+  "installCommand": "npm install",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}
