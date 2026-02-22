@@ -37,6 +37,15 @@ function getWeekStart() {
   return new Date(now.setDate(diff)).toDateString();
 }
 
+// Помощник: эффективный тариф с учётом даты истечения подписки.
+// Если подписка истекла — возвращает "free".
+function getEffectiveTier(userObj) {
+  const tier = userObj?.subscription_tier || "free";
+  if (tier === "free") return "free";
+  if (userObj.subscription_until && new Date(userObj.subscription_until) < new Date()) return "free";
+  return tier;
+}
+
 
 // ============================================================
 // ДОСТИЖЕНИЯ
@@ -696,7 +705,7 @@ export const useAppState = () => {
   const canAddDiaryEntry = useCallback(() => {
     const today = new Date().toDateString();
     const currentUser = loadFromLocal("user", MOCK_USER);
-    const tier = currentUser.subscription_tier || "free";
+    const tier = getEffectiveTier(currentUser);
     const limit = DIARY_LIMITS[tier] || DIARY_LIMITS.free;
     if (currentUser.diary_entries_today_date !== today) return true;
     return (currentUser.diary_entries_today || 0) < limit;
@@ -704,7 +713,7 @@ export const useAppState = () => {
 
   const getDiaryLimit = useCallback(() => {
     const currentUser = loadFromLocal("user", MOCK_USER);
-    const tier = currentUser.subscription_tier || "free";
+    const tier = getEffectiveTier(currentUser);
     return DIARY_LIMITS[tier] || DIARY_LIMITS.free;
   }, []);
 
@@ -715,16 +724,19 @@ export const useAppState = () => {
     return currentUser.diary_entries_today || 0;
   }, []);
 
-  // spendLuck: атомарная операция через localStorage (источник истины).
-  // Читаем, проверяем и записываем синхронно — исключает race condition,
-  // когда React-состояние и localStorage оказываются рассинхронизированы.
+  // spendLuck: атомарная операция — проверка и списание в одном setUser-колбеке.
+  // Используем ref для возврата результата из функционального обновления.
+  const spendResultRef = useRef(false);
   const spendLuck = useCallback((amount) => {
-    const currentUser = loadFromLocal("user", MOCK_USER);
-    if ((currentUser.luck_points || 0) < amount) return false;
-    const updated = { ...currentUser, luck_points: currentUser.luck_points - amount };
-    saveToLocal("user", updated);
-    setUser(updated);
-    return true;
+    spendResultRef.current = false;
+    setUser(prev => {
+      if ((prev.luck_points || 0) < amount) return prev; // недостаточно — не меняем
+      spendResultRef.current = true;
+      const next = { ...prev, luck_points: prev.luck_points - amount };
+      saveToLocal("user", next);
+      return next;
+    });
+    return spendResultRef.current;
   }, []);
 
   // --- Магазин: покупки за очки удачи ---
@@ -899,7 +911,7 @@ export const useAppState = () => {
       // Время суток
       if (hour >= 0 && hour < 5)                     checkAch("night_owl");
       if (hour >= 5 && hour < 7)                     checkAch("early_bird");
-      if (hour === 0 && minute === 0)                checkAch("midnight_oracle");
+      if (hour === 0 && minute <= 4)                  checkAch("midnight_oracle");
       // Коллекция карт
       if (newCollection.length >= 10)                checkAch("cards_10");
       if (newCollection.length >= 15)                checkAch("cards_15");
@@ -953,7 +965,7 @@ export const useAppState = () => {
     const limit = READING_LIMITS[spreadId];
     if (!limit) return true;
     const currentUser = loadFromLocal("user", MOCK_USER);
-    const tier = currentUser.subscription_tier || "free";
+    const tier = getEffectiveTier(currentUser);
     const maxCount = limit[tier] || 0;
     if (maxCount === 0) return false;
 
@@ -978,7 +990,7 @@ export const useAppState = () => {
     const limit = READING_LIMITS[spreadId];
     if (!limit) return { used: 0, max: 999, type: "daily" };
     const currentUser = loadFromLocal("user", MOCK_USER);
-    const tier = currentUser.subscription_tier || "free";
+    const tier = getEffectiveTier(currentUser);
     const maxCount = limit[tier] || 0;
     const today = new Date().toDateString();
     const weekStart = getWeekStart();
@@ -1296,13 +1308,7 @@ export const useAppState = () => {
   // Учитывает дату истечения подписки
   const canAccess = useCallback((tier) => {
     const levels = { free: 0, basic: 1, vip: 1, premium: 2 };
-    let effectiveTier = user.subscription_tier || "free";
-    // Проверяем не истекла ли подписка
-    if (effectiveTier !== "free" && user.subscription_until) {
-      if (new Date(user.subscription_until) < new Date()) {
-        effectiveTier = "free";
-      }
-    }
+    const effectiveTier = getEffectiveTier(user);
     return (levels[effectiveTier] || 0) >= (levels[tier] || 0);
   }, [user.subscription_tier, user.subscription_until]);
 
@@ -1370,7 +1376,7 @@ export const useAppState = () => {
   const getContextForClaude = useCallback(() => {
     // Доминантная тема из гаданий (для эффекта ясновидящего)
     const topicCounts = {};
-    tarotHistory.forEach(r => {
+    (tarotHistory || []).forEach(r => {
       const q = (r.question || "").toLowerCase();
       if (/любов|отношен|парен|девушк|муж|жен|сердц/.test(q)) topicCounts.love   = (topicCounts.love   || 0) + 1;
       if (/работ|карьер|деньг|финанс|бизнес|проект/.test(q)) topicCounts.career  = (topicCounts.career  || 0) + 1;
@@ -1388,7 +1394,7 @@ export const useAppState = () => {
     }).join("\n");
 
     // Таро — все гадания: вопрос → карты (без даты, без интерпретации)
-    const tarotFull = tarotHistory.map(e => {
+    const tarotFull = (tarotHistory || []).map(e => {
       const cards = (e.cards || []).map(c => c.name + (c.reversed ? "↕" : "")).join(", ");
       return `${e.question || "без вопроса"} — ${cards}`;
     }).join("\n");
@@ -1565,6 +1571,15 @@ export const useAppState = () => {
       return next;
     });
     return ACHIEVEMENTS_LIST.find(a => a.id === id) || null;
+  }, []);
+
+  // Cleanup pending timers при размонтировании (смена аккаунта, logout и т.д.)
+  useEffect(() => {
+    return () => {
+      if (oracleSyncTimer.current) clearTimeout(oracleSyncTimer.current);
+      if (luckSyncRef.current) clearTimeout(luckSyncRef.current);
+      if (shopSyncRef.current) clearTimeout(shopSyncRef.current);
+    };
   }, []);
 
   return {

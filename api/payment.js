@@ -227,7 +227,7 @@ export default async function handler(req, res) {
 
       } catch (e) {
         console.error("[payment-webhook refund]", e.message);
-        return res.status(200).json({ ok: false, error: e.message });
+        return res.status(200).json({ ok: false, error: "internal" });
       }
     }
 
@@ -253,7 +253,7 @@ export default async function handler(req, res) {
 
     } catch (e) {
       console.error("[payment-webhook]", e.message);
-      return res.status(200).json({ ok: false, error: e.message }); // 200 чтобы ЮKassa не ретраила
+      return res.status(200).json({ ok: false, error: "internal" }); // 200 чтобы ЮKassa не ретраила
     }
   }
 
@@ -302,6 +302,6 @@ export default async function handler(req, res) {
     });
   } catch (e) {
     console.error("[payment]", e.message);
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: "Ошибка при создании платежа. Попробуйте позже." });
   }
 }
