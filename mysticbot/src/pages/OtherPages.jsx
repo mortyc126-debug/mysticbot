@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Card, Btn, SLabel, AppHeader, Badge, Modal, pluralizeDays } from "../components/UI";
 import ClaudeAPI from "../api/claude";
-import { ZODIAC_SIGNS } from "../data/tarot";
+import { ZODIAC_SIGNS, MAJOR_ARCANA } from "../data/tarot";
 import { getMasteryLevel, MASTERY_LEVELS, DAILY_PLANETS_STUB, MYSTICAL_CALENDAR_2026, SPREAD_NAMES,
          getPersonalizedPlanetInfluence, getPersonalizedRitual,
          getDailyCache, setDailyCache, ACHIEVEMENTS_LIST } from "../hooks/useAppState";
@@ -16,7 +16,7 @@ export function Astrology({ state, showToast }) {
           canCheckCompat, getCompatInfo, useCompatCheck,
           canReferralCompat, getReferralCompatInfo, useReferralCompat,
           getReferralCode, addLuck, addDailyEnergy, updateOracleMemory,
-          oracleMemory, shopPurchases, useShopPurchase } = state;
+          oracleMemory, shopPurchases, useShopPurchase, unlockAchievement } = state;
   const [selectedSign, setSelectedSign] = useState(
     ZODIAC_SIGNS.find(z => z.sign === user.sun_sign) || ZODIAC_SIGNS[11]
   );
@@ -171,6 +171,7 @@ export function Astrology({ state, showToast }) {
     setCompatType(type);
     addLuck(1, "Проверка совместимости");
     addDailyEnergy();
+    unlockAchievement?.("first_compat");
     runCompatAI(type, null);
   };
 
@@ -690,7 +691,7 @@ export function DiaryPage({ state, showToast }) {
   const { user, diary, addDiaryEntry, tarotHistory, canAccess,
           canAddDiaryEntry, getDiaryLimit, getDiaryUsedToday, getContextForClaude,
           addLuck, addDailyEnergy, updateOracleMemory,
-          shopPurchases, useShopPurchase } = state;
+          shopPurchases, useShopPurchase, unlockAchievement } = state;
   const [tab, setTab] = useState("diary");
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ mood: "😊", title: "", text: "", predicted_accurate: "" });
@@ -797,7 +798,7 @@ export function DiaryPage({ state, showToast }) {
         )}
 
         {/* СОННИК */}
-        {tab === "dreams" && <DreamSearch canAccess={canAccess} showToast={showToast} user={user} getContextForClaude={getContextForClaude} addLuck={addLuck} addDailyEnergy={addDailyEnergy} updateOracleMemory={updateOracleMemory} shopPurchases={shopPurchases} useShopPurchase={useShopPurchase} />}
+        {tab === "dreams" && <DreamSearch canAccess={canAccess} showToast={showToast} user={user} getContextForClaude={getContextForClaude} addLuck={addLuck} addDailyEnergy={addDailyEnergy} updateOracleMemory={updateOracleMemory} shopPurchases={shopPurchases} useShopPurchase={useShopPurchase} unlockAchievement={unlockAchievement} />}
 
         {/* СТАТИСТИКА */}
         {tab === "stats" && <DiaryStats diary={diary} tarotHistory={tarotHistory} user={user} />}
@@ -808,7 +809,7 @@ export function DiaryPage({ state, showToast }) {
   );
 }
 
-function DreamSearch({ canAccess, showToast, user, getContextForClaude, addLuck, addDailyEnergy, updateOracleMemory, shopPurchases, useShopPurchase }) {
+function DreamSearch({ canAccess, showToast, user, getContextForClaude, addLuck, addDailyEnergy, updateOracleMemory, shopPurchases, useShopPurchase, unlockAchievement }) {
   const [query, setQuery] = useState("");
   const [dreamText, setDreamText] = useState("");
   const [analysisResult, setAnalysisResult] = useState(null);
@@ -857,6 +858,7 @@ function DreamSearch({ canAccess, showToast, user, getContextForClaude, addLuck,
     setLoading(false);
     addLuck?.(2, "Анализ сна");
     addDailyEnergy?.();
+    unlockAchievement?.("first_dream");
     showToast("🌙 +2 💫 Сон разгадан!");
   };
 
@@ -1380,11 +1382,11 @@ export function Profile({ state, showToast }) {
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700 }}>Коллекция</div>
                 <div style={{ fontSize: 10, color: "var(--text2)" }}>
-                  {(user.card_collection || []).length}/78 карт
+                  {(user.card_collection || []).length}/{MAJOR_ARCANA.length} карт
                 </div>
                 <div style={{ background: "var(--border)", borderRadius: 10, height: 3, marginTop: 3, overflow: "hidden" }}>
                   <div style={{ height: "100%", background: "linear-gradient(90deg,#8b5cf6,#f59e0b)", borderRadius: 10,
-                    width: `${Math.min(((user.card_collection || []).length / 78) * 100, 100)}%` }} />
+                    width: `${Math.min(((user.card_collection || []).length / MAJOR_ARCANA.length) * 100, 100)}%` }} />
                 </div>
               </div>
             </div>
@@ -1986,36 +1988,58 @@ export function Profile({ state, showToast }) {
         <div style={{ marginBottom: 10 }}>
           <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 8 }}>
             Карты появляются в коллекции когда ты получаешь их в гаданиях.
-            Собери все 78, чтобы разблокировать достижение 🏆
+            Собери все {MAJOR_ARCANA.length}, чтобы разблокировать достижение 🏆
           </div>
           {/* Progress bar */}
           <div style={{ background: "var(--bg3)", borderRadius: 20, height: 6, overflow: "hidden", marginBottom: 6 }}>
             <div style={{
               height: "100%", borderRadius: 20,
               background: "linear-gradient(90deg,#8b5cf6,#f59e0b)",
-              width: `${Math.min(((user.card_collection || []).length / 78) * 100, 100)}%`,
+              width: `${Math.min(((user.card_collection || []).length / MAJOR_ARCANA.length) * 100, 100)}%`,
               transition: "width 0.8s ease",
             }} />
           </div>
           <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 12 }}>
-            Собрано: <span style={{ color: "var(--accent)", fontWeight: 700 }}>{(user.card_collection || []).length}</span> / 78 карт
+            Собрано: <span style={{ color: "var(--accent)", fontWeight: 700 }}>{(user.card_collection || []).length}</span> / {MAJOR_ARCANA.length} карт
           </div>
-          {(user.card_collection || []).length === 0 ? (
-            <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text2)", fontSize: 12 }}>
-              🃏 Начни гадать — карты будут появляться здесь
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {(user.card_collection || []).map(cardName => (
-                <div key={cardName} style={{
-                  fontSize: 10, padding: "4px 8px", borderRadius: 8, fontWeight: 600,
-                  background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.25)",
-                  color: "var(--accent)",
-                }}>{cardName}</div>
-              ))}
-            </div>
-          )}
+          {/* Visual card grid — all cards with collected/locked states */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+            {MAJOR_ARCANA.map(card => {
+              const collected = (user.card_collection || []).includes(card.name);
+              const gradients = [
+                "linear-gradient(160deg,#1a0a2e,#2d1b69)",
+                "linear-gradient(160deg,#0a1628,#1e3a5f)",
+                "linear-gradient(160deg,#1a0a1e,#4a1d4a)",
+                "linear-gradient(160deg,#0a2018,#1a4a2e)",
+                "linear-gradient(160deg,#1e0a0a,#4a1a1a)",
+              ];
+              return (
+                <div key={card.id} style={{
+                  borderRadius: 10, overflow: "hidden",
+                  background: collected ? gradients[card.id % gradients.length] : "var(--bg3)",
+                  border: `1px solid ${collected ? "rgba(139,92,246,0.45)" : "var(--border)"}`,
+                  padding: "10px 4px 8px",
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                  opacity: collected ? 1 : 0.4,
+                  transition: "all 0.3s",
+                  minHeight: 80,
+                }}>
+                  <div style={{ fontSize: 26, marginBottom: 4 }}>
+                    {collected ? card.emoji : "🔒"}
+                  </div>
+                  <div style={{
+                    fontSize: 9, fontWeight: 700, textAlign: "center",
+                    color: collected ? "rgba(255,255,255,0.85)" : "var(--text2)",
+                    lineHeight: 1.25, padding: "0 2px",
+                  }}>
+                    {card.name}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
+        <div style={{ height: 8 }} />
         <Btn variant="ghost" onClick={() => setShowCollectionModal(false)}>Закрыть</Btn>
       </Modal>
 

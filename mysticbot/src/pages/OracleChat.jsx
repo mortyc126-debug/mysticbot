@@ -60,7 +60,7 @@ async function callOracle({ systemPrompt, messages, signal }) {
 
 export default function OracleChat({ state, showToast }) {
   const { user, canAccess, setCurrentPage, goBack, getContextForClaude, addLuck, addDailyEnergy,
-          unlockAchievement } = state;
+          unlockAchievement, updateUser } = state;
 
   const [messages, setMessages] = useState([
     { role: "oracle", text: ORACLE_PERSONA.intro, id: 0 },
@@ -158,12 +158,15 @@ export default function OracleChat({ state, showToast }) {
 
       setMessages(prev => [...prev, { role: "oracle", text: reply, id: Date.now() }]);
       setSessionCount(n => n + 1);
+      const totalOracleQuestions = (user.total_oracle_questions || 0) + 1;
+      updateUser?.({ total_oracle_questions: totalOracleQuestions });
 
       // Начисляем удачу за первые 3 вопроса сессии
       if (sessionCount < 3) addLuck?.(1, "Вопрос Оракулу");
 
-      // Достижение за первую сессию
+      // Достижения оракула
       if (sessionCount === 0) unlockAchievement?.("oracle_1");
+      if (totalOracleQuestions >= 10) unlockAchievement?.("oracle_10");
     } catch (err) {
       if (err.name !== "AbortError") {
         setMessages(prev => [...prev, {

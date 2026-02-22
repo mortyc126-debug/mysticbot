@@ -52,7 +52,7 @@ const STEPS = ["intro", "upload", "result"];
 
 export default function Palmistry({ state, showToast }) {
   const { user, canAccess, setCurrentPage, addLuck, addDailyEnergy, updateOracleMemory,
-          shopPurchases, useShopPurchase } = state;
+          shopPurchases, useShopPurchase, unlockAchievement } = state;
 
   const [step, setStep]               = useState("intro");
   // Две ладони: правая (настоящее) и левая (потенциал)
@@ -140,6 +140,7 @@ export default function Palmistry({ state, showToast }) {
     setStep("result");
     addLuck(3, "Хиромантия");
     addDailyEnergy();
+    unlockAchievement?.("palmistry_done");
     showToast("🖐 +3 💫 Ладонь прочитана!");
     TelegramSDK.haptic.notification("success");
   };

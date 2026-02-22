@@ -52,7 +52,7 @@ function getLocalInterpretation(runes, question) {
 
 export default function Runes({ state, showToast }) {
   const { user, canAccess, setCurrentPage, goBack, addLuck, addDailyEnergy,
-          shopPurchases, useShopPurchase } = state;
+          shopPurchases, useShopPurchase, unlockAchievement } = state;
 
   const [mode, setMode]                   = useState(null);
   const [question, setQuestion]           = useState("");
@@ -115,6 +115,7 @@ export default function Runes({ state, showToast }) {
     setLoading(false);
     addLuck(2, "Гадание на рунах");
     addDailyEnergy();
+    unlockAchievement?.("runes_cast");
     showToast("ᚠ +2 💫 Руны говорят!");
   };
 

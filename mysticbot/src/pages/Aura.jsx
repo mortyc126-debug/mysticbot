@@ -299,7 +299,7 @@ function calculateAura(answers) {
 
 export default function Aura({ state, showToast }) {
   const { user, canAccess, setCurrentPage, goBack, addLuck, addDailyEnergy, updateOracleMemory,
-          shopPurchases, useShopPurchase } = state;
+          shopPurchases, useShopPurchase, unlockAchievement } = state;
 
   const [step, setStep]           = useState("intro"); // intro | quiz | loading | result
   const [currentQ, setCurrentQ]   = useState(0);
@@ -355,6 +355,7 @@ export default function Aura({ state, showToast }) {
         TelegramSDK.haptic.notification("success");
         addLuck(2, "Анализ ауры");
         addDailyEnergy();
+        unlockAchievement?.("aura_scan");
         showToast("✨ +2 💫 Аура раскрыта!");
       }, 1800);
 
