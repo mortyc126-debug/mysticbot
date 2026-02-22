@@ -73,6 +73,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, total, migrated, errors });
   } catch (e) {
     console.error("[decrypt-diary]", e.message);
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: "Внутренняя ошибка" });
   }
 }
