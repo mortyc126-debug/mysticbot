@@ -418,9 +418,25 @@ export const interpretTarot = (cards, question, user, spread, context, oracleMem
     ? `\n\nЗвёзды помнят: карта ${(prevReading.cards?.[0]?.name || "судьбы")} уже раскрывала свои грани. Нить продолжается — ты на шаг ближе к ответу.`
     : "";
 
-  // Cliffhanger — следующая глава
-  const nextEvents = ["Меркурий усилит ясность через 3 дня", "Полнолуние откроет скрытое", "Новолуние принесёт новый цикл", "Венера изменит энергетику"];
-  const cliffhanger = `\n\n✦ Следующая глава твоей истории откроется, когда ${nextEvents[Math.floor(Date.now() / 86400000) % nextEvents.length]}. Тогда эти карты обретут новый смысл.`;
+  // Краткий ясный ответ в конце
+  let briefAnswer = "";
+  if (/стоит|нужно|можно|получится/.test(q)) {
+    briefAnswer = hasRev
+      ? "\n\nКраткий ответ: сейчас лучше подождать и не торопиться с решением."
+      : "\n\nКраткий ответ: да, карты поддерживают это направление. Действуй.";
+  } else if (isLoveQ) {
+    briefAnswer = hasRev
+      ? "\n\nКраткий ответ: в отношениях нужна внутренняя работа прежде внешних шагов."
+      : "\n\nКраткий ответ: в любви благоприятный период — будь открыт и честен.";
+  } else if (isCareerQ) {
+    briefAnswer = hasRev
+      ? "\n\nКраткий ответ: пересмотри подход к работе, есть скрытое препятствие."
+      : "\n\nКраткий ответ: в карьере всё складывается — действуй решительно.";
+  } else {
+    briefAnswer = hasRev
+      ? "\n\nКраткий ответ: не торопись, сейчас время для осмысления, а не для действий."
+      : "\n\nКраткий ответ: ситуация развивается благоприятно. Доверяй процессу.";
+  }
 
   return [
     openers[intimacy],
@@ -436,7 +452,7 @@ export const interpretTarot = (cards, question, user, spread, context, oracleMem
     accuracyNote,
     keywordStr ? `\n\n${keywordStr}` : "",
     `\n\n${closing}`,
-    cliffhanger,
+    briefAnswer,
   ].filter(Boolean).join("");
 };
 

@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Card, Btn, SLabel, AppHeader, Badge, TarotCardVisual, Modal } from "../components/UI";
-import { MAJOR_ARCANA, SPREADS } from "../data/tarot";
-import { interpretTarot, generatePredictionSeed } from "../hooks/useAppState";
+import { ALL_CARDS, SPREADS } from "../data/tarot";
+import { interpretTarot } from "../hooks/useAppState";
 import ClaudeAPI from "../api/claude";
 
 function drawCards(count) {
-  const shuffled = [...MAJOR_ARCANA].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, count).map(c => ({ ...c, reversed: Math.random() > 0.75 }));
+  const shuffled = [...ALL_CARDS].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count).map(c => ({ ...c, reversed: Math.random() > 0.65 }));
 }
 
 export default function Tarot({ state, showToast }) {
@@ -19,7 +19,6 @@ export default function Tarot({ state, showToast }) {
   const [question, setQuestion] = useState("");
   const [cards, setCards] = useState([]);
   const [interpretation, setInterpretation] = useState("");
-  const [predictionSeed, setPredictionSeed] = useState("");
   const [loading, setLoading] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
 
@@ -49,24 +48,15 @@ export default function Tarot({ state, showToast }) {
     const context = getContextForClaude();
 
     let interp = null;
-    let seed = null;
     try {
-      [interp, seed] = await Promise.all([
-        ClaudeAPI.interpretTarot({ spread: selectedSpread, cards: drawn, question, userContext: context }),
-        ClaudeAPI.generatePredictionSeedAI({ cards: drawn, question, userContext: context }),
-      ]);
+      interp = await ClaudeAPI.interpretTarot({ spread: selectedSpread, cards: drawn, question, userContext: context });
     } catch {
       interp = null;
-      seed = null;
     }
     if (!interp) {
       interp = interpretTarot(drawn, question, user, selectedSpread, context, oracleMemory);
     }
-    if (!seed) {
-      seed = generatePredictionSeed(drawn, question, user, selectedSpread);
-    }
     setInterpretation(interp);
-    setPredictionSeed(seed);
     setLoading(false);
     setPhase("result");
     addLuck(1, "Гадание Таро");
@@ -83,7 +73,6 @@ export default function Tarot({ state, showToast }) {
         reversed: c.reversed,
       })),
       interpretation: interp,
-      prediction_seed: seed,
     });
     showToast("🃏 +1 💫 за гадание!");
   };
@@ -94,7 +83,6 @@ export default function Tarot({ state, showToast }) {
     setQuestion("");
     setCards([]);
     setInterpretation("");
-    setPredictionSeed("");
   };
 
   return (
@@ -308,29 +296,6 @@ export default function Tarot({ state, showToast }) {
                 </div>
               </div>
             ))}
-
-            {/* === КРЮЧОК НА ЗАВТРА: SEED ПРЕДСКАЗАНИЯ === */}
-            {predictionSeed && (
-              <div style={{
-                background: "linear-gradient(135deg,rgba(139,92,246,0.12),rgba(245,158,11,0.08))",
-                border: "1px solid rgba(139,92,246,0.3)",
-                borderRadius: 16, padding: "14px 16px",
-                animation: "fadeInUp 0.5s ease",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 20 }}>🔭</span>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    Знак, которого стоит ждать
-                  </div>
-                </div>
-                <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.65 }}>
-                  {predictionSeed}
-                </div>
-                <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 10, padding: "6px 10px", background: "rgba(139,92,246,0.06)", borderRadius: 8 }}>
-                  ✦ Вернись завтра и отметь — сбылось ли. Это влияет на точность твоих следующих раскладов.
-                </div>
-              </div>
-            )}
 
             <div style={{ height: 8 }} />
           </>

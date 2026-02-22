@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Card, Btn, SLabel, AppHeader, Badge, Modal, pluralizeDays } from "../components/UI";
 import ClaudeAPI from "../api/claude";
-import { ZODIAC_SIGNS, MAJOR_ARCANA } from "../data/tarot";
+import { ZODIAC_SIGNS, ALL_CARDS } from "../data/tarot";
 import { getMasteryLevel, MASTERY_LEVELS, DAILY_PLANETS_STUB, MYSTICAL_CALENDAR_2026, SPREAD_NAMES,
          getPersonalizedPlanetInfluence, getPersonalizedRitual,
          getDailyCache, setDailyCache, ACHIEVEMENTS_LIST } from "../hooks/useAppState";
@@ -1382,11 +1382,11 @@ export function Profile({ state, showToast }) {
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700 }}>Коллекция</div>
                 <div style={{ fontSize: 10, color: "var(--text2)" }}>
-                  {(user.card_collection || []).length}/{MAJOR_ARCANA.length} карт
+                  {(user.card_collection || []).length}/{ALL_CARDS.length} карт
                 </div>
                 <div style={{ background: "var(--border)", borderRadius: 10, height: 3, marginTop: 3, overflow: "hidden" }}>
                   <div style={{ height: "100%", background: "linear-gradient(90deg,#8b5cf6,#f59e0b)", borderRadius: 10,
-                    width: `${Math.min(((user.card_collection || []).length / MAJOR_ARCANA.length) * 100, 100)}%` }} />
+                    width: `${Math.min(((user.card_collection || []).length / ALL_CARDS.length) * 100, 100)}%` }} />
                 </div>
               </div>
             </div>
@@ -1424,30 +1424,6 @@ export function Profile({ state, showToast }) {
             <div style={{ fontSize: 14, color: "var(--text2)" }}>→</div>
           </div>
         </Card>
-
-        {/* Персональный Оракул — виден всем, использование только с Премиум */}
-        <div onClick={() => setCurrentPage("oracle")} style={{
-          background: "linear-gradient(135deg,rgba(139,92,246,0.15),rgba(99,102,241,0.1))",
-          border: "1px solid rgba(139,92,246,0.35)",
-          borderRadius: 16, padding: "14px 16px", cursor: "pointer",
-          display: "flex", alignItems: "center", gap: 14,
-          opacity: canAccess("premium") ? 1 : 0.85,
-        }}>
-          <div style={{ fontSize: 38, animation: "float 3s ease-in-out infinite" }}>🔮</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
-              Персональный Оракул
-              {!canAccess("premium") && (
-                <span style={{ fontSize: 10, fontWeight: 700, background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#fff", padding: "2px 7px", borderRadius: 6 }}>👑 Премиум</span>
-              )}
-            </div>
-            <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.55 }}>
-              Помнит все твои гадания, сны и записи.
-              Консультирует по любым вопросам без ограничений.
-            </div>
-          </div>
-          <div style={{ fontSize: 18, color: "var(--text2)" }}>{canAccess("premium") ? "→" : "🔒"}</div>
-        </div>
 
         {/* Subscription */}
         <SLabel>💎 Тарифы</SLabel>
@@ -1988,23 +1964,23 @@ export function Profile({ state, showToast }) {
         <div style={{ marginBottom: 10 }}>
           <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 8 }}>
             Карты появляются в коллекции когда ты получаешь их в гаданиях.
-            Собери все {MAJOR_ARCANA.length}, чтобы разблокировать достижение 🏆
+            Собери все {ALL_CARDS.length}, чтобы разблокировать достижение 🏆
           </div>
           {/* Progress bar */}
           <div style={{ background: "var(--bg3)", borderRadius: 20, height: 6, overflow: "hidden", marginBottom: 6 }}>
             <div style={{
               height: "100%", borderRadius: 20,
               background: "linear-gradient(90deg,#8b5cf6,#f59e0b)",
-              width: `${Math.min(((user.card_collection || []).length / MAJOR_ARCANA.length) * 100, 100)}%`,
+              width: `${Math.min(((user.card_collection || []).length / ALL_CARDS.length) * 100, 100)}%`,
               transition: "width 0.8s ease",
             }} />
           </div>
           <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 12 }}>
-            Собрано: <span style={{ color: "var(--accent)", fontWeight: 700 }}>{(user.card_collection || []).length}</span> / {MAJOR_ARCANA.length} карт
+            Собрано: <span style={{ color: "var(--accent)", fontWeight: 700 }}>{(user.card_collection || []).length}</span> / {ALL_CARDS.length} карт
           </div>
           {/* Visual card grid — all cards with collected/locked states */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-            {MAJOR_ARCANA.map(card => {
+            {ALL_CARDS.map(card => {
               const collected = (user.card_collection || []).includes(card.name);
               const gradients = [
                 "linear-gradient(160deg,#1a0a2e,#2d1b69)",
