@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Card, Btn, SLabel, AppHeader, Badge, EnergyBar, TarotCardVisual, pluralizeDays } from "../components/UI";
-import { MAJOR_ARCANA, ZODIAC_SIGNS } from "../data/tarot";
+import { ALL_CARDS, ZODIAC_SIGNS } from "../data/tarot";
 import { generateHoroscope, DAILY_PLANETS_STUB, getUpcomingEvents, getDailyCache, setDailyCache, getSpecialDay, ACHIEVEMENTS_LIST } from "../hooks/useAppState";
 import ClaudeAPI from "../api/claude";
 
@@ -41,7 +41,7 @@ export default function Home({ state, showToast }) {
   const [horoscope, setHoroscope]               = useState(() => generateHoroscope(user, false, tarotHistory, oracleMemory));
   const [horoscopeExpanded, setExpanded]         = useState(false);
   const [horoscopeLoading, setHoroscopeLoading] = useState(false);
-  const [dailyCard]                              = useState(() => MAJOR_ARCANA[Math.floor(Date.now() / 86400000) % MAJOR_ARCANA.length]);
+  const [dailyCard]                              = useState(() => ALL_CARDS[Math.floor(Date.now() / 86400000) % ALL_CARDS.length]);
   const [upcomingEvents]                         = useState(() => getUpcomingEvents(7));
   const [specialDay]                             = useState(() => getSpecialDay());
   const [specialDayDismissed, setSpecialDayDismissed] = useState(() => {
@@ -241,6 +241,41 @@ export default function Home({ state, showToast }) {
 
         {/* === МИСТИЧЕСКОЕ РАССЛЕДОВАНИЕ === */}
         <InvestigationTeaser investigation={investigation} setCurrentPage={setCurrentPage} />
+
+        {/* === ПЕРСОНАЛЬНЫЙ ОРАКУЛ === */}
+        <div
+          onClick={() => setCurrentPage("oracle")}
+          style={{
+            background: "linear-gradient(135deg,rgba(139,92,246,0.18),rgba(245,158,11,0.1))",
+            border: "1px solid rgba(139,92,246,0.4)",
+            borderRadius: 18, padding: "16px 18px",
+            cursor: "pointer", position: "relative", overflow: "hidden",
+          }}
+        >
+          <div style={{ position: "absolute", right: -12, top: -12, fontSize: 72, opacity: 0.07, animation: "float 3s ease-in-out infinite" }}>🔮</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{
+              width: 52, height: 52, borderRadius: 16, flexShrink: 0,
+              background: "linear-gradient(135deg,#8b5cf6,#6d28d9)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 28, boxShadow: "0 4px 16px rgba(139,92,246,0.3)",
+            }}>🔮</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+                Персональный Оракул
+                {!canAccess("premium") && (
+                  <span style={{ fontSize: 9, fontWeight: 700, background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#fff", padding: "2px 7px", borderRadius: 6 }}>👑</span>
+                )}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.55 }}>
+                Помнит всё о тебе. Отвечает на любые вопросы — о любви, пути, страхах.
+              </div>
+            </div>
+            <div style={{ fontSize: 20, color: canAccess("premium") ? "var(--accent)" : "var(--text2)" }}>
+              {canAccess("premium") ? "→" : "🔒"}
+            </div>
+          </div>
+        </div>
 
         {/* Гороскоп */}
         <SLabel>🌟 Гороскоп на сегодня</SLabel>

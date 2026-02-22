@@ -58,19 +58,53 @@ async function callOracle({ systemPrompt, messages, signal }) {
   return data.text || "";
 }
 
+// Ключ localStorage для сохранения сообщений оракула
+const ORACLE_MESSAGES_KEY = "oracle_messages";
+const MAX_STORED_MESSAGES = 100; // Максимум хранимых сообщений
+
 export default function OracleChat({ state, showToast }) {
   const { user, canAccess, setCurrentPage, goBack, getContextForClaude, addLuck, addDailyEnergy,
           unlockAchievement, updateUser } = state;
 
-  const [messages, setMessages] = useState([
-    { role: "oracle", text: ORACLE_PERSONA.intro, id: 0 },
-  ]);
+  // Загружаем историю сообщений из localStorage (или Supabase через user.oracle_messages)
+  const [messages, setMessages] = useState(() => {
+    try {
+      // Приоритет: localStorage (актуальнее), потом Supabase (user.oracle_messages)
+      const stored = localStorage.getItem(ORACLE_MESSAGES_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      // Фоллбэк на данные из Supabase
+      if (Array.isArray(user.oracle_messages) && user.oracle_messages.length > 0) {
+        localStorage.setItem(ORACLE_MESSAGES_KEY, JSON.stringify(user.oracle_messages));
+        return user.oracle_messages;
+      }
+    } catch { /* fallback */ }
+    return [{ role: "oracle", text: ORACLE_PERSONA.intro, id: 0 }];
+  });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionCount, setSessionCount] = useState(0);
   const abortRef = useRef(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+  const syncTimerRef = useRef(null);
+
+  // Сохраняем сообщения в localStorage при каждом изменении + дебаунсированный sync в Supabase
+  useEffect(() => {
+    if (messages.length <= 1) return; // Не сохраняем начальное приветствие
+    try {
+      const toStore = messages.slice(-MAX_STORED_MESSAGES);
+      localStorage.setItem(ORACLE_MESSAGES_KEY, JSON.stringify(toStore));
+    } catch { /* localStorage full */ }
+    // Дебаунс sync в Supabase через updateUser (5 сек)
+    clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      updateUser?.({ oracle_messages: messages.slice(-MAX_STORED_MESSAGES) });
+    }, 5000);
+    return () => clearTimeout(syncTimerRef.current);
+  }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Автоскролл к последнему сообщению
   useEffect(() => {
@@ -203,7 +237,7 @@ export default function OracleChat({ state, showToast }) {
         borderBottom: "1px solid rgba(245,158,11,0.15)",
         display: "flex", alignItems: "center", gap: 8,
       }}>
-        <button onClick={goBack || (() => setCurrentPage("profile"))} style={{
+        <button onClick={goBack || (() => setCurrentPage("home"))} style={{
           background: "none", border: "none", color: "var(--text2)", fontSize: 12,
           cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 4, flexShrink: 0,
         }}>← Назад</button>

@@ -72,8 +72,9 @@ export const ACHIEVEMENTS_LIST = [
   { id: "reading_200",        emoji: "🏛️", title: "200 гаданий",              desc: "Зал мудрецов распахнул для тебя двери",         luck: 200 },
   // ── Коллекция карт ─────────────────────────────────────────
   { id: "cards_10",           emoji: "📦", title: "10 карт собрано",          desc: "Коллекция пополняется",                        luck: 10  },
-  { id: "cards_15",           emoji: "🎴", title: "15 карт собрано",          desc: "Больше половины колоды в твоих руках",          luck: 25  },
-  { id: "cards_22",           emoji: "🏆", title: "Полная колода",            desc: "Все 22 Старших аркана собраны!",               luck: 100 },
+  { id: "cards_22",           emoji: "🎴", title: "22 Старших Аркана",       desc: "Все Старшие Арканы собраны!",                  luck: 50  },
+  { id: "cards_40",           emoji: "🃏", title: "40 карт собрано",          desc: "Больше половины колоды в твоих руках",          luck: 30  },
+  { id: "cards_78",           emoji: "🏆", title: "Полная колода",            desc: "Все 78 карт Таро собраны!",                    luck: 150 },
   // ── Время суток ────────────────────────────────────────────
   { id: "night_owl",          emoji: "🦉", title: "Ночной мистик",            desc: "Гадание в ночной тишине (00:00–04:59)",         luck: 10  },
   { id: "early_bird",         emoji: "🌅", title: "Рассветное гадание",       desc: "На заре карты особенно сильны (05:00–06:59)",   luck: 10  },
@@ -919,8 +920,9 @@ export const useAppState = () => {
       if (hour === 0 && minute <= 4)                  checkAch("midnight_oracle");
       // Коллекция карт
       if (newCollection.length >= 10)                checkAch("cards_10");
-      if (newCollection.length >= 15)                checkAch("cards_15");
       if (newCollection.length >= 22)                checkAch("cards_22");
+      if (newCollection.length >= 40)                checkAch("cards_40");
+      if (newCollection.length >= 78)                checkAch("cards_78");
       // Разнообразие раскладов
       if (allSpreadsUsed)                            checkAch("all_spreads");
 
@@ -1624,7 +1626,7 @@ export { getDailyCache, setDailyCache } from "./storage.js";
 export { extractInsightsFromInteraction } from "./oracle.js";
 export {
   getZodiacSign, MASTERY_LEVELS, getMasteryLevel,
-  generateHoroscope, interpretTarot, generatePredictionSeed,
+  generateHoroscope, interpretTarot,
   DAILY_PLANETS_STUB, getPersonalizedPlanetInfluence,
   generateEventForecast, generatePersonalPlanetForecast,
   MYSTICAL_CALENDAR_2026, getPersonalizedRitual,
