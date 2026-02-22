@@ -63,9 +63,8 @@ export const ACHIEVEMENTS_LIST = [
   { id: "reading_200",        emoji: "🏛️", title: "200 гаданий",              desc: "Зал мудрецов распахнул для тебя двери",         luck: 200 },
   // ── Коллекция карт ─────────────────────────────────────────
   { id: "cards_10",           emoji: "📦", title: "10 карт собрано",          desc: "Коллекция пополняется",                        luck: 10  },
-  { id: "cards_22",           emoji: "✨", title: "Старшие арканы",           desc: "Все 22 Старших аркана в твоей колоде",          luck: 30  },
-  { id: "cards_40",           emoji: "🎴", title: "Полколоды",                desc: "Половина пути к полной колоде",                 luck: 50  },
-  { id: "cards_78",           emoji: "🏆", title: "Полная колода",            desc: "Все 78 карт Таро собраны!",                    luck: 150 },
+  { id: "cards_15",           emoji: "🎴", title: "15 карт собрано",          desc: "Больше половины колоды в твоих руках",          luck: 25  },
+  { id: "cards_22",           emoji: "🏆", title: "Полная колода",            desc: "Все 22 Старших аркана собраны!",               luck: 100 },
   // ── Время суток ────────────────────────────────────────────
   { id: "night_owl",          emoji: "🦉", title: "Ночной мистик",            desc: "Гадание в ночной тишине (00:00–04:59)",         luck: 10  },
   { id: "early_bird",         emoji: "🌅", title: "Рассветное гадание",       desc: "На заре карты особенно сильны (05:00–06:59)",   luck: 10  },
@@ -91,8 +90,8 @@ export const ACHIEVEMENTS_LIST = [
   { id: "oracle_1",           emoji: "🔮", title: "Голос Оракула",            desc: "Первый диалог с Персональным Оракулом",         luck: 10  },
   { id: "oracle_10",          emoji: "🌌", title: "Постоянный гость",         desc: "10 вопросов Персональному Оракулу",             luck: 25  },
   // ── Удача ──────────────────────────────────────────────────
-  { id: "luck_100",           emoji: "💰", title: "100 очков удачи",          desc: "Счастливчик — первая сотня",                   luck: 0   },
-  { id: "luck_500",           emoji: "💎", title: "500 очков удачи",          desc: "Везение стало твоей второй натурой",            luck: 0   },
+  { id: "luck_100",           emoji: "💰", title: "100 очков удачи",          desc: "Счастливчик — первая сотня",                   luck: 15  },
+  { id: "luck_500",           emoji: "💎", title: "500 очков удачи",          desc: "Везение стало твоей второй натурой",            luck: 50  },
 ];
 
 export const useAppState = () => {
@@ -763,6 +762,43 @@ export const useAppState = () => {
     return () => clearTimeout(luckSyncRef.current);
   }, [user.luck_points, onboarding, user.registered]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Централизованная проверка достижений luck_100 / luck_500.
+  // addLuck() проверяет их, но luck_points также растёт через платежи,
+  // награды за достижения, стрик-бонусы и т.д. — поэтому следим за самим значением.
+  useEffect(() => {
+    if (onboarding || !user.registered) return;
+    const lp = user.luck_points || 0;
+    const unlocked = user.unlocked_achievements || [];
+    const thresholds = [
+      { id: "luck_100", min: 100 },
+      { id: "luck_500", min: 500 },
+    ];
+    const toUnlock = thresholds.filter(t => lp >= t.min && !unlocked.includes(t.id));
+    if (toUnlock.length === 0) return;
+    setUser(prev => {
+      const already = new Set(prev.unlocked_achievements || []);
+      const newUnlocks = [];
+      let bonusLuck = 0;
+      for (const t of toUnlock) {
+        if (!already.has(t.id)) {
+          already.add(t.id);
+          newUnlocks.push(t.id);
+          const ach = ACHIEVEMENTS_LIST.find(a => a.id === t.id);
+          bonusLuck += ach?.luck || 0;
+        }
+      }
+      if (newUnlocks.length === 0) return prev;
+      const next = {
+        ...prev,
+        unlocked_achievements: Array.from(already),
+        luck_points: (prev.luck_points || 0) + bonusLuck,
+        achievements_pending: [...(prev.achievements_pending || []), ...newUnlocks],
+      };
+      saveToLocal("user", next);
+      return next;
+    });
+  }, [user.luck_points, user.unlocked_achievements, onboarding, user.registered]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Дебаунсированный sync shop_purchases → Supabase.
   // Магазин раньше хранился только в localStorage — при очистке кэша покупки терялись.
   const shopSyncRef = useRef(null);
@@ -866,9 +902,8 @@ export const useAppState = () => {
       if (hour === 0 && minute === 0)                checkAch("midnight_oracle");
       // Коллекция карт
       if (newCollection.length >= 10)                checkAch("cards_10");
+      if (newCollection.length >= 15)                checkAch("cards_15");
       if (newCollection.length >= 22)                checkAch("cards_22");
-      if (newCollection.length >= 40)                checkAch("cards_40");
-      if (newCollection.length >= 78)                checkAch("cards_78");
       // Разнообразие раскладов
       if (allSpreadsUsed)                            checkAch("all_spreads");
 
