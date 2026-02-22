@@ -64,12 +64,14 @@ export default async function handler(req, res) {
         return res.status(503).json({ error: "Сервис временно недоступен" });
       }
 
+      const grokAbort = AbortSignal.timeout(30_000); // 30 сек таймаут
       const grokRes = await fetch(GROK_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${xaiKey}`,
         },
+        signal: grokAbort,
         body: JSON.stringify({
           model: "grok-4-1-fast-reasoning",
           messages: [

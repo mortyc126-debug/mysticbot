@@ -4,7 +4,7 @@
 
 import { getSupabase } from "../_supabase.js";
 import { decryptObject } from "../_crypto.js";
-import { setCorsHeaders, setSecurityHeaders } from "../_security.js";
+import { setCorsHeaders, setSecurityHeaders, safeStringEqual } from "../_security.js";
 
 const BATCH = 200; // сколько строк обрабатываем за раз
 
@@ -14,10 +14,10 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  // Проверяем секрет
+  // Проверяем секрет (только из заголовка, timing-safe сравнение)
   const secret = process.env.ADMIN_SECRET;
-  const provided = req.headers["x-admin-secret"] || req.body?.secret;
-  if (!secret || provided !== secret) {
+  const provided = req.headers["x-admin-secret"];
+  if (!secret || !provided || !safeStringEqual(provided, secret)) {
     return res.status(403).json({ error: "Forbidden" });
   }
 

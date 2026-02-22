@@ -752,13 +752,18 @@ export const useAppState = () => {
   }, []);
 
   // Списывает одну попытку. Возвращает true если успешно.
+  // Атомарная проверка+списание через functional setState (аналогично spendLuck).
+  const shopSpendRef = useRef(false);
   const useShopPurchase = useCallback((key) => {
-    const current = loadFromLocal("shop_purchases", {});
-    if ((current[key] || 0) <= 0) return false;
-    const next = { ...current, [key]: current[key] - 1 };
-    saveToLocal("shop_purchases", next);
-    setShopPurchases(next);
-    return true;
+    shopSpendRef.current = false;
+    setShopPurchases(prev => {
+      if ((prev[key] || 0) <= 0) return prev;
+      shopSpendRef.current = true;
+      const next = { ...prev, [key]: prev[key] - 1 };
+      saveToLocal("shop_purchases", next);
+      return next;
+    });
+    return shopSpendRef.current;
   }, []);
 
   // Дебаунсированный sync luck_points → Supabase.
