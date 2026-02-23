@@ -1284,7 +1284,7 @@ export const useAppState = () => {
   }, []);
 
   // --- Админ: проверка через сервер (ADMIN_TELEGRAM_IDS в env) ---
-  // Значение проставляется в useEffect через /api/admin/stats.
+  // Значение проставляется в useEffect через /api/admin.
   // Локальная клиентская проверка намеренно убрана — она была обходима.
   const isAdmin = useCallback(() => isAdminUser, [isAdminUser]);
 

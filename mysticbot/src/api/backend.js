@@ -258,7 +258,7 @@ export const fetchUserStats = async () => {
     const headers = { "Content-Type": "application/json" };
     if (initData) headers["x-telegram-init-data"] = initData;
 
-    const res = await fetch("/api/admin/stats", { method: "GET", headers });
+    const res = await fetch("/api/admin", { method: "GET", headers });
     if (res.status === 403) return { __error: 403 };
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
