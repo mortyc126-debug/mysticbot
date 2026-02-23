@@ -441,7 +441,7 @@ export function Astrology({ state, showToast }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 800, color: "#4ade80", marginBottom: 2 }}>🎁 Пригласи друга</div>
-                <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 1 }}>1-й друг = <span style={{ color: "#fbbf24", fontWeight: 700 }}>7 дней Премиум</span> бесплатно</div>
+                <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 1 }}>1-й = <span style={{ color: "#fbbf24", fontWeight: 700 }}>+3 дня Премиум</span> · 2-й и далее = +1 день</div>
                 <div style={{ fontSize: 10, color: "var(--text2)" }}>+ 5 бесплатных проверок совместимости/день</div>
               </div>
               <span style={{ fontSize: 18 }}>→</span>
@@ -620,15 +620,21 @@ export function Astrology({ state, showToast }) {
         <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.6, marginBottom: 14 }}>
           Поделись ссылкой — и получи щедрый бонус, когда друг зарегистрируется:
         </div>
-        <div style={{ background: "linear-gradient(135deg,rgba(245,158,11,0.1),rgba(139,92,246,0.08))", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 12, padding: "10px 12px", marginBottom: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: "#fbbf24", marginBottom: 8 }}>🔥 1-й друг — особый бонус:</div>
-          <div style={{ fontSize: 12, color: "#fbbf24", display: "flex", gap: 6, marginBottom: 4 }}><span>👑</span> <span><b>7 дней Премиум</b> бесплатно (доступ ко всем функциям)</span></div>
-          <div style={{ fontSize: 12, color: "#4ade80", display: "flex", gap: 6 }}><span>✅</span> До 5 бесплатных проверок совместимости в день</div>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 14 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", marginBottom: 2 }}>За каждого следующего друга:</div>
-          <div style={{ fontSize: 12, color: "#4ade80", display: "flex", gap: 6 }}><span>✅</span> +10 очков удачи</div>
-          <div style={{ fontSize: 12, color: "#4ade80", display: "flex", gap: 6 }}><span>✅</span> До 5 бесплатных проверок совместимости в день</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+          <div style={{ background: "linear-gradient(135deg,rgba(245,158,11,0.1),rgba(139,92,246,0.08))", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 11, padding: "9px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 22 }}>🥇</span>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "#fbbf24", marginBottom: 2 }}>1-й друг — <b>+3 дня Премиум</b></div>
+              <div style={{ fontSize: 10, color: "var(--text2)" }}>Полный доступ ко всем функциям приложения</div>
+            </div>
+          </div>
+          <div style={{ background: "rgba(139,92,246,0.07)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 11, padding: "9px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 22 }}>👥</span>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--accent)", marginBottom: 2 }}>2-й и далее — <b>+1 день Премиум</b></div>
+              <div style={{ fontSize: 10, color: "var(--text2)" }}>+ 5 бесплатных проверок совместимости/день</div>
+            </div>
+          </div>
         </div>
         <div style={{ background: "var(--bg3)", borderRadius: 12, padding: 12, marginBottom: 14, textAlign: "center" }}>
           <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 6 }}>Твой реферальный код:</div>
@@ -675,7 +681,7 @@ export function Astrology({ state, showToast }) {
               <div key={i} style={{ fontSize: 11, color: "var(--text2)", padding: "4px 0", display: "flex", gap: 6, alignItems: "center" }}>
                 <span>{i === 0 ? "👑" : "👤"}</span>
                 <span style={{ flex: 1 }}>{f.name} · {new Date(f.date).toLocaleDateString("ru-RU")}</span>
-                {i === 0 && <span style={{ fontSize: 10, color: "#fbbf24", fontWeight: 700 }}>+7 дней Премиум</span>}
+                {i === 0 && <span style={{ fontSize: 10, color: "#fbbf24", fontWeight: 700 }}>+3 дня Премиум</span>}
                 {i > 0 && <span style={{ fontSize: 10, color: "#4ade80" }}>+10 💫</span>}
               </div>
             ))}

@@ -74,15 +74,14 @@ export default async function handler(req, res) {
       referral_friends: [...existingFriends, newFriend],
     };
 
-    // Первый приглашённый друг → дарим 7 дней Премиум рефереру
-    if (isFirstFriend) {
-      const currentUntil = referrer.data?.subscription_until
-        ? new Date(referrer.data.subscription_until)
-        : new Date();
-      const startFrom = currentUntil > new Date() ? currentUntil : new Date();
-      updatedData.subscription_tier = "premium";
-      updatedData.subscription_until = new Date(startFrom.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    }
+    // Каждый приглашённый друг даёт Premium: 1-й → +3 дня, 2-й и далее → +1 день
+    const bonusDays = isFirstFriend ? 3 : 1;
+    const currentUntil = referrer.data?.subscription_until
+      ? new Date(referrer.data.subscription_until)
+      : new Date();
+    const startFrom = currentUntil > new Date() ? currentUntil : new Date();
+    updatedData.subscription_tier = "premium";
+    updatedData.subscription_until = new Date(startFrom.getTime() + bonusDays * 24 * 60 * 60 * 1000).toISOString();
 
     const { error: updateErr } = await db
       .from("mystic_users")
@@ -91,8 +90,8 @@ export default async function handler(req, res) {
 
     if (updateErr) throw updateErr;
 
-    console.log("[/api/referral] новый реферал зарегистрирован", isFirstFriend ? "(первый — выдан Premium 7 дней)" : "");
-    return res.status(200).json({ ok: true, reward: isFirstFriend ? "7_days_premium" : null });
+    console.log("[/api/referral] новый реферал зарегистрирован", `(+${bonusDays} дн. Premium, друг #${existingFriends.length + 1})`);
+    return res.status(200).json({ ok: true, reward: isFirstFriend ? "3_days_premium" : "1_day_premium" });
   } catch (e) {
     console.error("[/api/referral]", e.message);
     return res.status(500).json({ error: "Внутренняя ошибка сервера" });
