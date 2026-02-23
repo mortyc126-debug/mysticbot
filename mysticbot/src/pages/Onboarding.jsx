@@ -445,6 +445,7 @@ export default function Onboarding({ state, showToast }) {
                 { v: "relationship", e: "❤️", l: "В отношениях" },
                 { v: "married",      e: "💍", l: "Женат / Замужем" },
                 { v: "complicated",  e: "🌀", l: "Всё сложно" },
+                { v: "other",        e: "✨", l: "Другое" },
                 { v: "private",      e: "🔒", l: "Не хочу указывать" },
               ].map(r => (
                 <div key={r.v} onClick={() => set("relationship_status", r.v)} style={{
