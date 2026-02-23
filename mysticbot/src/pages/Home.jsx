@@ -298,22 +298,23 @@ export default function Home({ state, showToast }) {
         <div
           onClick={() => setCurrentPage("oracle")}
           style={{
-            background: "linear-gradient(135deg,rgba(139,92,246,0.18),rgba(245,158,11,0.1))",
-            border: "1px solid rgba(139,92,246,0.4)",
+            background: "linear-gradient(135deg,rgba(245,158,11,0.18),rgba(234,179,8,0.1),rgba(217,119,6,0.12))",
+            border: "2px solid rgba(245,158,11,0.55)",
             borderRadius: 18, padding: "16px 18px",
             cursor: "pointer", position: "relative", overflow: "hidden",
+            boxShadow: "0 0 24px rgba(245,158,11,0.18), 0 4px 16px rgba(0,0,0,0.25)",
           }}
         >
-          <div style={{ position: "absolute", right: -12, top: -12, fontSize: 72, opacity: 0.07, animation: "float 3s ease-in-out infinite" }}>🔮</div>
+          <div style={{ position: "absolute", right: -12, top: -12, fontSize: 72, opacity: 0.1, animation: "float 3s ease-in-out infinite" }}>✨</div>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{
               width: 52, height: 52, borderRadius: 16, flexShrink: 0,
-              background: "linear-gradient(135deg,#8b5cf6,#6d28d9)",
+              background: "linear-gradient(135deg,#f59e0b,#d97706)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 28, boxShadow: "0 4px 16px rgba(139,92,246,0.3)",
+              fontSize: 28, boxShadow: "0 4px 16px rgba(245,158,11,0.45)",
             }}>🔮</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4, display: "flex", alignItems: "center", gap: 8, color: "#f5a623" }}>
                 Персональный Оракул
                 {!canAccess("premium") && (
                   <span style={{ fontSize: 9, fontWeight: 700, background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#fff", padding: "2px 7px", borderRadius: 6 }}>👑</span>
@@ -323,7 +324,7 @@ export default function Home({ state, showToast }) {
                 Помнит всё о тебе. Отвечает на любые вопросы — о любви, пути, страхах.
               </div>
             </div>
-            <div style={{ fontSize: 20, color: canAccess("premium") ? "var(--accent)" : "var(--text2)" }}>
+            <div style={{ fontSize: 20, color: "#f5a623" }}>
               {canAccess("premium") ? "→" : "🔒"}
             </div>
           </div>
