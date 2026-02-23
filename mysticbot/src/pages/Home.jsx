@@ -36,7 +36,7 @@ export default function Home({ state, showToast }) {
   const { user, canAccess, setCurrentPage, diary, tarotHistory,
           readHoroscope, horoscopeReadToday, isDailyCardUsed, markDailyCardUsed,
           getContextForClaude, addDailyEnergy, addLuck,
-          unlockAchievement, investigation, oracleMemory } = state;
+          unlockAchievement, investigation, oracleMemory, getReferralCode } = state;
 
   const [horoscope, setHoroscope]               = useState(() => generateHoroscope(user, false, tarotHistory, oracleMemory));
   const [horoscopeExpanded, setExpanded]         = useState(false);
@@ -191,6 +191,9 @@ export default function Home({ state, showToast }) {
           <p style={{ fontSize: 12, color: "var(--text2)", marginBottom: 10 }}>{today} · Луна {planets.moon.phase} в {planets.moon.sign}</p>
           <EnergyBar value={energy} />
         </div>
+
+        {/* === РЕФЕРАЛЬНЫЙ БАННЕР === */}
+        <ReferralBanner user={user} getReferralCode={getReferralCode} showToast={showToast} />
 
         {/* === ОСОБЫЙ ДЕНЬ === */}
         {specialDay && !specialDayDismissed && (
@@ -711,5 +714,99 @@ function ShareCardButton({ card, sign, showToast }) {
     }}>
       {copied ? "✅ Скопировано!" : "📤 Поделиться картой дня"}
     </button>
+  );
+}
+
+// ============================================================
+// РЕФЕРАЛЬНЫЙ БАННЕР — «Пригласи друга, получи Премиум»
+// ============================================================
+function ReferralBanner({ user, getReferralCode, showToast }) {
+  const [copied, setCopied] = useState(false);
+  const friendsCount = (user.referral_friends || []).length;
+
+  const getLink = () => `https://t.me/mysticumbot?start=${getReferralCode()}`;
+
+  const handleCopy = () => {
+    const link = getLink();
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(link)
+        .then(() => { setCopied(true); showToast("🔗 Ссылка скопирована!"); setTimeout(() => setCopied(false), 2000); })
+        .catch(() => showToast("📋 Скопируй ссылку вручную"));
+    } else {
+      showToast("📋 Скопируй ссылку вручную");
+    }
+  };
+
+  const handleShare = () => {
+    const link = getLink();
+    const text = "🔮 Мистикум — персональный оракул! Таро, гороскопы, совместимость знаков зодиака. Попробуй бесплатно!";
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`, "_blank");
+  };
+
+  // Склонение слова "друг"
+  const friendWord = (n) => n === 1 ? "друг" : n >= 2 && n <= 4 ? "друга" : "друзей";
+
+  return (
+    <div style={{
+      background: "linear-gradient(135deg, rgba(34,197,94,0.13), rgba(139,92,246,0.1))",
+      border: "1.5px solid rgba(34,197,94,0.4)",
+      borderRadius: 18, padding: "14px 16px",
+      position: "relative", overflow: "hidden",
+      animation: "fadeInUp 0.4s ease",
+    }}>
+      {/* Декоративный фон */}
+      <div style={{ position: "absolute", right: -12, top: -12, fontSize: 74, opacity: 0.07, pointerEvents: "none", animation: "float 4s ease-in-out infinite" }}>🎁</div>
+
+      {/* Заголовок */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: 14, flexShrink: 0,
+          background: "linear-gradient(135deg, rgba(34,197,94,0.22), rgba(139,92,246,0.18))",
+          border: "1px solid rgba(34,197,94,0.35)",
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
+        }}>🎁</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "#4ade80", marginBottom: 2 }}>
+            Пригласи друга — получи Премиум
+          </div>
+          <div style={{ fontSize: 11, color: "var(--text2)", lineHeight: 1.5 }}>
+            1-й друг = <span style={{ color: "#fbbf24", fontWeight: 700 }}>+3 дня Премиум</span>
+            {" "}· каждый следующий = <span style={{ color: "var(--accent)", fontWeight: 700 }}>+1 день</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Счётчик друзей */}
+      {friendsCount > 0 && (
+        <div style={{
+          fontSize: 11, fontWeight: 700, color: "#4ade80",
+          marginBottom: 10, display: "flex", alignItems: "center", gap: 5,
+        }}>
+          <span>✓</span>
+          <span>Уже приглашено: {friendsCount} {friendWord(friendsCount)}</span>
+        </div>
+      )}
+
+      {/* Кнопки */}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={handleCopy} style={{
+          flex: 1, padding: "9px 10px", borderRadius: 11, cursor: "pointer",
+          background: copied ? "rgba(34,197,94,0.18)" : "rgba(255,255,255,0.05)",
+          border: `1px solid ${copied ? "rgba(34,197,94,0.5)" : "rgba(255,255,255,0.12)"}`,
+          color: copied ? "#4ade80" : "var(--text)",
+          fontSize: 12, fontWeight: 700, transition: "all 0.2s",
+        }}>
+          {copied ? "✓ Скопировано" : "📋 Скопировать ссылку"}
+        </button>
+        <button onClick={handleShare} style={{
+          flex: 1, padding: "9px 10px", borderRadius: 11, cursor: "pointer",
+          background: "linear-gradient(135deg, rgba(34,197,94,0.2), rgba(139,92,246,0.15))",
+          border: "1px solid rgba(34,197,94,0.4)",
+          color: "#4ade80", fontSize: 12, fontWeight: 700,
+        }}>
+          📤 Поделиться
+        </button>
+      </div>
+    </div>
   );
 }

@@ -38,11 +38,20 @@ function getWeekStart() {
 }
 
 // Помощник: эффективный тариф с учётом даты истечения подписки.
-// Если подписка истекла — возвращает "free".
+// Если подписка истекла — проверяет base_subscription_tier (для VIP-пользователей,
+// которые получили Premium через реферал), иначе возвращает "free".
 function getEffectiveTier(userObj) {
   const tier = userObj?.subscription_tier || "free";
   if (tier === "free") return "free";
-  if (userObj.subscription_until && new Date(userObj.subscription_until) < new Date()) return "free";
+  if (userObj.subscription_until && new Date(userObj.subscription_until) < new Date()) {
+    // Подписка истекла. Проверяем базовый тариф (актуально для VIP→Premium через реферал)
+    const baseTier  = userObj?.base_subscription_tier;
+    const baseUntil = userObj?.base_subscription_until ? new Date(userObj.base_subscription_until) : null;
+    if (baseTier && baseTier !== "free" && baseUntil && baseUntil > new Date()) {
+      return baseTier; // Возвращаем VIP, если его подписка ещё активна
+    }
+    return "free";
+  }
   return tier;
 }
 
@@ -1317,7 +1326,7 @@ export const useAppState = () => {
     const levels = { free: 0, basic: 1, vip: 1, premium: 2 };
     const effectiveTier = getEffectiveTier(user);
     return (levels[effectiveTier] || 0) >= (levels[tier] || 0);
-  }, [user.subscription_tier, user.subscription_until]);
+  }, [user.subscription_tier, user.subscription_until, user.base_subscription_tier, user.base_subscription_until]);
 
   // --- Подтверждение предсказания ---
   const confirmPrediction = useCallback((id, result) => {

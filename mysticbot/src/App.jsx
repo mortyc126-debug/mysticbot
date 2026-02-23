@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useAppState } from "./hooks/useAppState";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Onboarding from "./pages/Onboarding";
@@ -35,6 +35,9 @@ export default function App() {
   const state = useAppState();
   const { onboarding, currentPage, setCurrentPage, checkStreak } = state;
   const [toast, setToast] = useState(null);
+  // Отслеживаем предыдущее значение onboarding, чтобы активировать реферал
+  // ТОЛЬКО при переходе new-user→registered, а не у уже зарегистрированных.
+  const prevOnboardingRef = useRef(onboarding);
 
   // Инициализация Telegram WebApp SDK + сохранение реферального кода из start_param
   useEffect(() => {
@@ -47,11 +50,16 @@ export default function App() {
 
   // Стрик, сброс дневных лимитов + активация реферала после регистрации
   useEffect(() => {
+    const prevOnboarding = prevOnboardingRef.current;
+    prevOnboardingRef.current = onboarding;
+
     if (!onboarding) {
       checkStreak();
-      // Реферал: активируется один раз сразу после завершения онбординга
+      // Реферал: активируется ТОЛЬКО при переходе онбординг→зарегистрирован.
+      // Защита от срабатывания у уже зарегистрированных пользователей,
+      // которые перешли по чужой реферальной ссылке без прохождения регистрации.
       const pendingCode = localStorage.getItem("pending_referral");
-      if (pendingCode) {
+      if (pendingCode && prevOnboarding === true) {
         BackendAPI.registerReferral(pendingCode, state.user?.name || "Пользователь")
           .then(ok => { if (ok) localStorage.removeItem("pending_referral"); })
           .catch(() => {});
@@ -90,6 +98,12 @@ export default function App() {
           updates.subscription_tier  = bestTier;
           updates.subscription_until = serverUser.subscription_until;
         }
+      }
+
+      // Базовый тариф (для реверта VIP после истечения реферального Premium)
+      if (serverUser.base_subscription_tier) {
+        updates.base_subscription_tier  = serverUser.base_subscription_tier;
+        updates.base_subscription_until = serverUser.base_subscription_until ?? null;
       }
 
       if (Object.keys(updates).length > 0) {

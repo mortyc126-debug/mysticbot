@@ -80,6 +80,15 @@ export default async function handler(req, res) {
       ? new Date(referrer.data.subscription_until)
       : new Date();
     const startFrom = currentUntil > new Date() ? currentUntil : new Date();
+
+    // Для VIP-пользователей сохраняем базовый тариф, чтобы после истечения
+    // реферального Premium они вернулись к VIP (а не к Free)
+    const priorTier = referrer.data?.subscription_tier || "free";
+    if (priorTier === "vip" && !referrer.data?.base_subscription_tier) {
+      updatedData.base_subscription_tier = "vip";
+      updatedData.base_subscription_until = referrer.data?.subscription_until ?? null;
+    }
+
     updatedData.subscription_tier = "premium";
     updatedData.subscription_until = new Date(startFrom.getTime() + bonusDays * 24 * 60 * 60 * 1000).toISOString();
 
