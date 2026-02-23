@@ -100,6 +100,12 @@ export default function App() {
         }
       }
 
+      // Базовый тариф (для реверта VIP после истечения реферального Premium)
+      if (serverUser.base_subscription_tier) {
+        updates.base_subscription_tier  = serverUser.base_subscription_tier;
+        updates.base_subscription_until = serverUser.base_subscription_until ?? null;
+      }
+
       if (Object.keys(updates).length > 0) {
         state.updateUser(updates);
       }
