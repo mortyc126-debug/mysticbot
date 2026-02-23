@@ -200,6 +200,16 @@ export function Astrology({ state, showToast }) {
     runCompatAI("basic", null);
   };
 
+  const handleShareCompat = () => {
+    if (!compatResult || !compatSign) return;
+    const percent = compatResult.percent;
+    const mood = percent >= 80 ? "🔥 Огонь!" : percent >= 60 ? "💫 Хорошая пара" : "🌗 Есть нюансы";
+    const text = `${mood} Совместимость ${selectedSign.sign} + ${compatSign.sign} = ${percent}%\n«${(compatResult.description || "").slice(0, 100).replace(/\n/g, " ")}…»\n\nПроверь свою совместимость в Мистикуме 🔮`;
+    const link = `https://t.me/mysticumbot?start=${getReferralCode()}`;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+    window.open(shareUrl, "_blank");
+  };
+
   const compatBasicInfo = getCompatInfo("basic");
   const compatDetailedInfo = getCompatInfo("detailed");
   const referralInfo = getReferralCompatInfo();
@@ -326,10 +336,20 @@ export function Astrology({ state, showToast }) {
 
           {/* Реферальная проверка */}
           {referralInfo.hasFriends && (
-            <Btn variant="ghost" size="sm" style={{ marginBottom: 10, width: "100%" }}
-              onClick={handleReferralCompat}>
-              👥 По реферальной ссылке ({referralInfo.used}/{referralInfo.max} сегодня)
-            </Btn>
+            <div style={{
+              marginBottom: 10, background: "rgba(139,92,246,0.07)", border: "1px solid rgba(139,92,246,0.25)",
+              borderRadius: 11, padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)" }}>👥 Реферальная проверка</div>
+                <div style={{ fontSize: 10, color: "var(--text2)" }}>{referralInfo.used}/{referralInfo.max} сегодня · бесплатно</div>
+              </div>
+              <button onClick={handleReferralCompat} style={{
+                fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 8,
+                background: "rgba(139,92,246,0.2)", color: "var(--accent)",
+                border: "1px solid rgba(139,92,246,0.4)", cursor: "pointer",
+              }}>Проверить</button>
+            </div>
           )}
 
           {/* Результат совместимости */}
@@ -379,6 +399,16 @@ export function Astrology({ state, showToast }) {
                 )}
                 {compatResult.description}
               </div>
+
+              {/* Поделиться результатом */}
+              <button onClick={handleShareCompat} style={{
+                marginTop: 10, width: "100%", padding: "8px 12px", borderRadius: 10,
+                background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.25)",
+                color: "var(--accent)", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}>
+                📤 Поделиться результатом с другом
+              </button>
             </div>
           )}
 
@@ -403,19 +433,20 @@ export function Astrology({ state, showToast }) {
           </div>
 
           {/* Пригласи друга */}
-          <div style={{ marginTop: 10, background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 10, padding: "8px 10px" }}>
+          <button onClick={() => setShowReferral(true)} style={{
+            marginTop: 10, width: "100%", background: "linear-gradient(135deg,rgba(34,197,94,0.1),rgba(139,92,246,0.07))",
+            border: "1px solid rgba(34,197,94,0.3)", borderRadius: 12, padding: "10px 12px",
+            cursor: "pointer", textAlign: "left",
+          }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#4ade80", marginBottom: 2 }}>👥 Пригласи друга</div>
-                <div style={{ fontSize: 10, color: "var(--text2)" }}>Получи до 5 бесплатных проверок в день</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#4ade80", marginBottom: 2 }}>🎁 Пригласи друга</div>
+                <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 1 }}>1-й = <span style={{ color: "#fbbf24", fontWeight: 700 }}>+3 дня Премиум</span> · 2-й и далее = +1 день</div>
+                <div style={{ fontSize: 10, color: "var(--text2)" }}>+ 5 бесплатных проверок совместимости/день</div>
               </div>
-              <button onClick={() => setShowReferral(true)} style={{
-                fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 8,
-                background: "rgba(34,197,94,0.15)", color: "#4ade80",
-                border: "1px solid rgba(34,197,94,0.3)", cursor: "pointer",
-              }}>Ссылка</button>
+              <span style={{ fontSize: 18 }}>→</span>
             </div>
-          </div>
+          </button>
         </Card>
 
         {/* Планеты сегодня */}
@@ -585,13 +616,25 @@ export function Astrology({ state, showToast }) {
       </Modal>
 
       {/* Модальное окно: Реферальная ссылка */}
-      <Modal open={showReferral} onClose={() => setShowReferral(false)} title="👥 Пригласи друга">
+      <Modal open={showReferral} onClose={() => setShowReferral(false)} title="🎁 Пригласи друга">
         <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.6, marginBottom: 14 }}>
-          Поделись ссылкой на бота с другом. Когда он зарегистрируется, вы оба получите:
+          Поделись ссылкой — и получи щедрый бонус, когда друг зарегистрируется:
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
-          <div style={{ fontSize: 12, color: "#4ade80", display: "flex", gap: 6 }}><span>✅</span> До 5 бесплатных проверок совместимости в день</div>
-          <div style={{ fontSize: 12, color: "#4ade80", display: "flex", gap: 6 }}><span>✅</span> +10 очков удачи за каждого друга</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+          <div style={{ background: "linear-gradient(135deg,rgba(245,158,11,0.1),rgba(139,92,246,0.08))", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 11, padding: "9px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 22 }}>🥇</span>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "#fbbf24", marginBottom: 2 }}>1-й друг — <b>+3 дня Премиум</b></div>
+              <div style={{ fontSize: 10, color: "var(--text2)" }}>Полный доступ ко всем функциям приложения</div>
+            </div>
+          </div>
+          <div style={{ background: "rgba(139,92,246,0.07)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 11, padding: "9px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 22 }}>👥</span>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--accent)", marginBottom: 2 }}>2-й и далее — <b>+1 день Премиум</b></div>
+              <div style={{ fontSize: 10, color: "var(--text2)" }}>+ 5 бесплатных проверок совместимости/день</div>
+            </div>
+          </div>
         </div>
         <div style={{ background: "var(--bg3)", borderRadius: 12, padding: 12, marginBottom: 14, textAlign: "center" }}>
           <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 6 }}>Твой реферальный код:</div>
@@ -635,8 +678,11 @@ export function Astrology({ state, showToast }) {
               Приглашённые друзья ({(user.referral_friends || []).length}):
             </div>
             {(user.referral_friends || []).map((f, i) => (
-              <div key={i} style={{ fontSize: 11, color: "var(--text2)", padding: "3px 0", display: "flex", gap: 6 }}>
-                <span>👤</span> {f.name} · {new Date(f.date).toLocaleDateString("ru-RU")}
+              <div key={i} style={{ fontSize: 11, color: "var(--text2)", padding: "4px 0", display: "flex", gap: 6, alignItems: "center" }}>
+                <span>{i === 0 ? "👑" : "👤"}</span>
+                <span style={{ flex: 1 }}>{f.name} · {new Date(f.date).toLocaleDateString("ru-RU")}</span>
+                {i === 0 && <span style={{ fontSize: 10, color: "#fbbf24", fontWeight: 700 }}>+3 дня Премиум</span>}
+                {i > 0 && <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 700 }}>+1 день</span>}
               </div>
             ))}
           </div>
