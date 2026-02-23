@@ -99,6 +99,27 @@ export default async function handler(req, res) {
 
     if (updateErr) throw updateErr;
 
+    // Уведомляем реферера через бота что пришёл новый друг
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const webappUrl = process.env.WEBAPP_URL || null;
+    if (token) {
+      const friendName = newFriend.name || "Пользователь";
+      const rewardText = isFirstFriend
+        ? `🎁 Тебе начислено <b>+3 дня Премиум</b> в подарок!`
+        : `🎁 Тебе начислен <b>+1 день Премиум</b> в подарок!`;
+      const text = `🎉 По твоей реферальной ссылке зарегистрировался <b>${friendName}</b>!\n\n${rewardText}\n\nПродолжай приглашать друзей — каждый следующий добавляет ещё +1 день ✨`;
+      const replyMarkup = webappUrl
+        ? { inline_keyboard: [[{ text: "🔮 Открыть МистикУм", web_app: { url: webappUrl } }]] }
+        : null;
+      const body = { chat_id: referrer.telegram_id, text, parse_mode: "HTML" };
+      if (replyMarkup) body.reply_markup = replyMarkup;
+      fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).catch(e => console.warn("[/api/referral] notification failed:", e.message));
+    }
+
     console.log("[/api/referral] новый реферал зарегистрирован", `(+${bonusDays} дн. Premium, друг #${existingFriends.length + 1})`);
     return res.status(200).json({ ok: true, reward: isFirstFriend ? "3_days_premium" : "1_day_premium" });
   } catch (e) {
