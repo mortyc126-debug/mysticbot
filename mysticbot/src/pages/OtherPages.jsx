@@ -682,7 +682,7 @@ export function Astrology({ state, showToast }) {
                 <span>{i === 0 ? "👑" : "👤"}</span>
                 <span style={{ flex: 1 }}>{f.name} · {new Date(f.date).toLocaleDateString("ru-RU")}</span>
                 {i === 0 && <span style={{ fontSize: 10, color: "#fbbf24", fontWeight: 700 }}>+3 дня Премиум</span>}
-                {i > 0 && <span style={{ fontSize: 10, color: "#4ade80" }}>+10 💫</span>}
+                {i > 0 && <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 700 }}>+1 день</span>}
               </div>
             ))}
           </div>
