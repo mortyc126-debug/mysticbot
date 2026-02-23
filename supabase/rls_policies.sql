@@ -15,9 +15,10 @@
 
 -- ── Таблица пользователей ────────────────────────────────────
 CREATE TABLE IF NOT EXISTS mystic_users (
-  telegram_id TEXT PRIMARY KEY,
-  data        JSONB NOT NULL DEFAULT '{}',
-  updated_at  TIMESTAMPTZ DEFAULT NOW()
+  telegram_id     TEXT PRIMARY KEY,
+  data            JSONB NOT NULL DEFAULT '{}',
+  oracle_messages JSONB DEFAULT '[]',   -- переписка с Персональным Оракулом (автосинхронизация из data)
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ── Таблица дневника ─────────────────────────────────────────
@@ -71,6 +72,24 @@ CREATE POLICY "deny_anon_tarot"
 -- ── Разрешить service_role (backend) полный доступ ──────────
 -- service_role автоматически обходит RLS в Supabase,
 -- явные политики здесь не нужны — оставляем для документации.
+
+-- ── Триггер: автосинхронизация полей из data JSONB ─────────
+-- При INSERT/UPDATE извлекает oracle_messages из data в выделенную колонку
+CREATE OR REPLACE FUNCTION sync_user_fields()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.data ? 'oracle_messages' THEN
+    NEW.oracle_messages := NEW.data -> 'oracle_messages';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sync_user_fields ON mystic_users;
+CREATE TRIGGER trg_sync_user_fields
+  BEFORE INSERT OR UPDATE ON mystic_users
+  FOR EACH ROW
+  EXECUTE FUNCTION sync_user_fields();
 
 -- ── Индексы для производительности ─────────────────────────
 -- Убеждаемся что индексы по telegram_id существуют (если не созданы ранее)
