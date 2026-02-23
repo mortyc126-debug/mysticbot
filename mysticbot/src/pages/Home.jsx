@@ -234,6 +234,60 @@ export default function Home({ state, showToast }) {
         )}
 
 
+        {/* === ПРОГРЕСС РАССЛЕДОВАНИЯ === */}
+        {investigation?.title && (investigation?.progress || 0) < 3 && (() => {
+          const progress = investigation.progress || 0;
+          const remaining = 3 - progress;
+          return (
+            <div style={{
+              background: "rgba(99,102,241,0.08)",
+              border: "1px solid rgba(99,102,241,0.25)",
+              borderRadius: 14, padding: "12px 14px",
+              display: "flex", alignItems: "center", gap: 12,
+              cursor: "pointer",
+            }} onClick={() => setCurrentPage("investigation")}>
+              <span style={{ fontSize: 24 }}>🔍</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#818cf8", marginBottom: 2 }}>
+                  {progress === 0 ? "Расследование ждёт первой улики" : `Расследование: ещё ${remaining} ${remaining === 1 ? "часть" : "части"} скрыты`}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text2)" }}>
+                  {progress === 0 ? "Сделай расклад, чтобы начать раскрывать тайну." : "Гадай дальше — следующая часть разблокируется."}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* === ПРОГРЕСС ОПРОСНИКОВ === */}
+        {(() => {
+          const completedQuizzes = user.completed_quizzes || [];
+          const TOTAL_QUIZZES = 5;
+          if (completedQuizzes.length > 0 && completedQuizzes.length < TOTAL_QUIZZES) {
+            const left = TOTAL_QUIZZES - completedQuizzes.length;
+            return (
+              <div style={{
+                background: "rgba(139,92,246,0.07)",
+                border: "1px solid rgba(139,92,246,0.2)",
+                borderRadius: 14, padding: "12px 14px",
+                display: "flex", alignItems: "center", gap: 12,
+                cursor: "pointer",
+              }} onClick={() => setCurrentPage("quizzes")}>
+                <span style={{ fontSize: 24 }}>📋</span>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "var(--accent)", marginBottom: 2 }}>
+                    {completedQuizzes.length}/{TOTAL_QUIZZES} опросников пройдено
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text2)" }}>
+                    {left === 1 ? "Остался последний тест — пройди, чтобы Оракул видел тебя полностью." : `Ещё ${left} теста — и Оракул узнает тебя намного глубже.`}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          return null;
+        })()}
+
         {/* === МИСТИЧЕСКОЕ РАССЛЕДОВАНИЕ === */}
         <InvestigationTeaser investigation={investigation} setCurrentPage={setCurrentPage} />
 
