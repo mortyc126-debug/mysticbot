@@ -13,7 +13,7 @@ export default function Tarot({ state, showToast }) {
   const { user, canAccess, addLuck, addTarotReading, getContextForClaude,
           canDoReading, getReadingInfo, tarotHistory,
           confirmPrediction, getLastUnconfirmedReading, getEngagementHooks,
-          markDailyCardUsed, addDailyEnergy, oracleMemory } = state;
+          markDailyCardUsed, addDailyEnergy, oracleMemory, getReferralCode } = state;
   const [phase, setPhase] = useState("select"); // select | question | reveal | result
   const [selectedSpread, setSelectedSpread] = useState(null);
   const [question, setQuestion] = useState("");
@@ -83,6 +83,15 @@ export default function Tarot({ state, showToast }) {
     setQuestion("");
     setCards([]);
     setInterpretation("");
+  };
+
+  const handleShareResult = () => {
+    const firstCard = cards[0];
+    const snippet = interpretation ? interpretation.slice(0, 120).replace(/\n/g, " ") + "…" : "";
+    const text = `🃏 Расклад «${selectedSpread?.name}» — карты открыли мне кое-что важное!\n${firstCard ? `${firstCard.emoji} ${firstCard.name}${firstCard.reversed ? " (перевёрнута)" : ""}\n` : ""}«${snippet}»\n\nПроверь своё предсказание в Мистикуме 🔮`;
+    const link = `https://t.me/mysticumbot?start=${getReferralCode()}`;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+    window.open(shareUrl, "_blank");
   };
 
   return (
@@ -252,7 +261,10 @@ export default function Tarot({ state, showToast }) {
                 </div>
               )}
 
-              <Btn variant="ghost" size="sm" onClick={handleReset}>🔄 Новое гадание</Btn>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn variant="ghost" size="sm" onClick={handleReset} style={{ flex: 1 }}>🔄 Новое гадание</Btn>
+                <Btn variant="ghost" size="sm" onClick={handleShareResult} style={{ flex: 1 }}>📤 Поделиться</Btn>
+              </div>
             </Card>
 
             {/* Карты из расклада (детально) */}

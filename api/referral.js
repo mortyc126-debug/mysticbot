@@ -61,6 +61,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, already: true });
     }
 
+    const isFirstFriend = existingFriends.length === 0;
+
     const newFriend = {
       telegram_id: ok && newUserId ? newUserId : null,
       name: (new_user_name || "Пользователь").slice(0, 50),
@@ -72,6 +74,16 @@ export default async function handler(req, res) {
       referral_friends: [...existingFriends, newFriend],
     };
 
+    // Первый приглашённый друг → дарим 7 дней Премиум рефереру
+    if (isFirstFriend) {
+      const currentUntil = referrer.data?.subscription_until
+        ? new Date(referrer.data.subscription_until)
+        : new Date();
+      const startFrom = currentUntil > new Date() ? currentUntil : new Date();
+      updatedData.subscription_tier = "premium";
+      updatedData.subscription_until = new Date(startFrom.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    }
+
     const { error: updateErr } = await db
       .from("mystic_users")
       .update({ data: updatedData, updated_at: new Date().toISOString() })
@@ -79,8 +91,8 @@ export default async function handler(req, res) {
 
     if (updateErr) throw updateErr;
 
-    console.log("[/api/referral] новый реферал зарегистрирован");
-    return res.status(200).json({ ok: true });
+    console.log("[/api/referral] новый реферал зарегистрирован", isFirstFriend ? "(первый — выдан Premium 7 дней)" : "");
+    return res.status(200).json({ ok: true, reward: isFirstFriend ? "7_days_premium" : null });
   } catch (e) {
     console.error("[/api/referral]", e.message);
     return res.status(500).json({ error: "Внутренняя ошибка сервера" });

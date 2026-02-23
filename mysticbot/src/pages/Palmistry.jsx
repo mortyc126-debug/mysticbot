@@ -52,7 +52,7 @@ const STEPS = ["intro", "upload", "result"];
 
 export default function Palmistry({ state, showToast }) {
   const { user, canAccess, setCurrentPage, addLuck, addDailyEnergy, updateOracleMemory,
-          shopPurchases, useShopPurchase, unlockAchievement } = state;
+          shopPurchases, useShopPurchase, unlockAchievement, getReferralCode } = state;
 
   const [step, setStep]               = useState("intro");
   // Две ладони: правая (настоящее) и левая (потенциал)
@@ -412,9 +412,16 @@ export default function Palmistry({ state, showToast }) {
               )}
             </Card>
 
-            <Btn variant="ghost" onClick={handleReset}>
-              ↺ Новое чтение
-            </Btn>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Btn variant="ghost" onClick={handleReset} style={{ flex: 1 }}>↺ Новое чтение</Btn>
+              <Btn variant="ghost" style={{ flex: 1 }} onClick={() => {
+                const snippet = result?.summary ? result.summary.slice(0, 120).replace(/\n/g, " ") + "…" : "";
+                const text = `🖐 Хиромантия открыла мне тайны судьбы!\n«${snippet}»\n\nУзнай что скрывает твоя ладонь в Мистикуме 🔮`;
+                const link = `https://t.me/mysticumbot?start=${getReferralCode()}`;
+                const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+                window.open(shareUrl, "_blank");
+              }}>📤 Поделиться</Btn>
+            </div>
           </>
         )}
       </div>
