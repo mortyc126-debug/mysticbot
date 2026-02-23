@@ -9,6 +9,10 @@
 import { createHmac } from "node:crypto";
 import { safeStringEqual } from "./_security.js";
 
+// HTML-экранирование для Telegram parse_mode: HTML
+const escapeHtml = (str) =>
+  String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 const sendMessage = async (token, chatId, text, replyMarkup = null) => {
   const body = {
     chat_id: chatId,
@@ -66,7 +70,7 @@ export default async function handler(req, res) {
 
   const chatId = message.chat.id;
   const text = message.text || "";
-  const firstName = message.from?.first_name || "друг";
+  const firstName = escapeHtml(message.from?.first_name || "друг");
 
   // /start — открыть WebApp
   if (text.startsWith("/start")) {

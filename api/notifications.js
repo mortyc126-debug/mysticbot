@@ -105,6 +105,10 @@ const CRON_POOL = [
   }),
 ];
 
+// ── HTML-экранирование для Telegram parse_mode: HTML ────────
+const escapeHtml = (str) =>
+  String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 // ── Общая функция отправки в Telegram ───────────────────────
 const sendTelegramMessage = async (token, chatId, text, replyMarkup) => {
   const body = { chat_id: chatId, text, parse_mode: "HTML" };
@@ -122,7 +126,76 @@ const sendTelegramMessage = async (token, chatId, text, replyMarkup) => {
   return r.json();
 };
 
+// ── Астро-события 2026 (для персонализированных уведомлений) ─
+const ASTRO_EVENTS_2026 = [
+  { date: "2026-01-17", type: "full_moon",    label: "🌕 Полнолуние в Раке" },
+  { date: "2026-01-29", type: "new_moon",     label: "🌑 Новолуние в Водолее" },
+  { date: "2026-02-12", type: "full_moon",    label: "🌕 Полнолуние во Льве" },
+  { date: "2026-02-17", type: "eclipse",      label: "🌑 Лунное затмение" },
+  { date: "2026-02-28", type: "new_moon",     label: "🌑 Новолуние в Рыбах" },
+  { date: "2026-03-03", type: "eclipse",      label: "☀️ Солнечное затмение" },
+  { date: "2026-03-14", type: "full_moon",    label: "🌕 Полнолуние в Деве" },
+  { date: "2026-03-20", type: "equinox",      label: "🌸 Весеннее равноденствие" },
+  { date: "2026-03-29", type: "new_moon",     label: "🌑 Новолуние в Овне" },
+  { date: "2026-04-12", type: "full_moon",    label: "🌕 Полнолуние в Весах" },
+  { date: "2026-04-27", type: "new_moon",     label: "🌑 Новолуние в Тельце" },
+  { date: "2026-05-11", type: "full_moon",    label: "🌕 Полнолуние в Скорпионе" },
+  { date: "2026-05-27", type: "new_moon",     label: "🌑 Новолуние в Близнецах" },
+  { date: "2026-06-09", type: "full_moon",    label: "🌕 Полнолуние в Стрельце" },
+  { date: "2026-06-21", type: "solstice",     label: "☀️ Летнее солнцестояние" },
+  { date: "2026-06-25", type: "new_moon",     label: "🌑 Новолуние в Раке" },
+  { date: "2026-07-09", type: "full_moon",    label: "🌕 Полнолуние в Козероге" },
+  { date: "2026-07-25", type: "new_moon",     label: "🌑 Новолуние во Льве" },
+  { date: "2026-08-07", type: "full_moon",    label: "🌕 Полнолуние в Водолее" },
+  { date: "2026-08-12", type: "eclipse",      label: "🌑 Лунное затмение" },
+  { date: "2026-08-23", type: "new_moon",     label: "🌑 Новолуние в Деве" },
+  { date: "2026-08-28", type: "eclipse",      label: "☀️ Солнечное затмение" },
+  { date: "2026-09-05", type: "full_moon",    label: "🌕 Полнолуние в Рыбах" },
+  { date: "2026-09-21", type: "new_moon",     label: "🌑 Новолуние в Весах" },
+  { date: "2026-09-22", type: "equinox",      label: "🍂 Осеннее равноденствие" },
+  { date: "2026-10-05", type: "full_moon",    label: "🌕 Полнолуние в Овне" },
+  { date: "2026-10-21", type: "new_moon",     label: "🌑 Новолуние в Скорпионе" },
+  { date: "2026-11-03", type: "full_moon",    label: "🌕 Полнолуние в Тельце" },
+  { date: "2026-11-20", type: "new_moon",     label: "🌑 Новолуние в Стрельце" },
+  { date: "2026-12-03", type: "full_moon",    label: "🌕 Полнолуние в Близнецах" },
+  { date: "2026-12-19", type: "new_moon",     label: "🌑 Новолуние в Козероге" },
+  { date: "2026-12-21", type: "solstice",     label: "❄️ Зимнее солнцестояние" },
+];
+
+// Умный выбор типа уведомления для каждого пользователя
+function chooseNotificationType(userData, dayIndex) {
+  const streak = userData.streak_days || 0;
+  const sign = userData.sun_sign || null;
+  const todayISO = new Date().toISOString().slice(0, 10);
+
+  // 1. Приоритет: астрологическое событие сегодня
+  const todayEvent = ASTRO_EVENTS_2026.find(e => e.date === todayISO);
+  if (todayEvent) {
+    const isMoon = todayEvent.type === "full_moon" || todayEvent.type === "new_moon";
+    return {
+      type: isMoon ? "moon_event" : "astro_event",
+      context: { sign, streak, event_label: todayEvent.label, event_ritual: todayEvent.ritual || "" },
+    };
+  }
+
+  // 2. Если есть активная серия ≥ 2 — каждый второй день напоминаем
+  if (streak >= 2 && dayIndex % 2 === 0) {
+    return {
+      type: "streak_warning",
+      context: { sign, streak },
+    };
+  }
+
+  // 3. Ротация: персонализированный шаблон из CRON_POOL
+  return {
+    type: "cron_rotation",
+    context: { sign, streak },
+  };
+}
+
 // ── GET: CRON — массовая рассылка всем пользователям ────────
+// Все уведомления отправляются через бота (Telegram Bot API).
+// Фронтенд НЕ отправляет уведомления — вся логика здесь.
 async function handleCron(req, res) {
   // Проверка авторизации крона
   const cronSecret = process.env.CRON_SECRET;
@@ -157,15 +230,23 @@ async function handleCron(req, res) {
     for (const row of users) {
       const userData = row.data || {};
 
+      // Пропускаем незарегистрированных и уже получивших уведомление сегодня
       if (!userData.registered) { skipped++; continue; }
       if (userData.notif_cron_sent === today) { skipped++; continue; }
 
-      const sign = userData.sun_sign || null;
-      const streak = userData.streak_days || 0;
-      const ctx = { sign, streak };
+      // Умный выбор типа уведомления на основе профиля пользователя
+      const { type, context: ctx } = chooseNotificationType(userData, dayIndex);
 
-      const templateFn = CRON_POOL[dayIndex % CRON_POOL.length];
-      const { text, btn } = templateFn(ctx);
+      let text, btn;
+      if (type === "cron_rotation") {
+        // Стандартная ротация по дням из пула шаблонов
+        const templateFn = CRON_POOL[dayIndex % CRON_POOL.length];
+        ({ text, btn } = templateFn(ctx));
+      } else {
+        // Персонализированный шаблон (астро-событие, стрик, и т.д.)
+        const templateFn = TEMPLATES[type] || TEMPLATES.custom;
+        ({ text, btn } = templateFn(ctx));
+      }
 
       const replyMarkup = webappUrl
         ? { inline_keyboard: [[{ text: btn, web_app: { url: webappUrl } }]] }
@@ -175,7 +256,9 @@ async function handleCron(req, res) {
         await sendTelegramMessage(token, row.telegram_id, text, replyMarkup);
         sent++;
 
-        const merged = { ...userData, notif_cron_sent: today };
+        // Обновляем дедупликацию: сегодня уведомление уже отправлено
+        const dedupField = DAILY_DEDUP_FIELD[type] || "notif_cron_sent";
+        const merged = { ...userData, notif_cron_sent: today, [dedupField]: today };
         await db.from("mystic_users").upsert(
           { telegram_id: row.telegram_id, data: merged, updated_at: new Date().toISOString() },
           { onConflict: "telegram_id" }

@@ -5,6 +5,10 @@ import { getSupabase } from "./_supabase.js";
 import { resolveUserId } from "./_auth.js";
 import { setCorsHeaders, setSecurityHeaders, rateLimit, checkBodySize, validateString } from "./_security.js";
 
+// HTML-экранирование для Telegram parse_mode: HTML
+const escapeHtml = (str) =>
+  String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 export default async function handler(req, res) {
   setCorsHeaders(res, "POST, OPTIONS");
   setSecurityHeaders(res);
@@ -103,7 +107,7 @@ export default async function handler(req, res) {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const webappUrl = process.env.WEBAPP_URL || null;
     if (token) {
-      const friendName = newFriend.name || "Пользователь";
+      const friendName = escapeHtml(newFriend.name || "Пользователь");
       const rewardText = isFirstFriend
         ? `🎁 Тебе начислено <b>+3 дня Премиум</b> в подарок!`
         : `🎁 Тебе начислен <b>+1 день Премиум</b> в подарок!`;

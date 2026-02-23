@@ -294,36 +294,49 @@ export default function Home({ state, showToast }) {
         {/* === МИСТИЧЕСКОЕ РАССЛЕДОВАНИЕ === */}
         <InvestigationTeaser investigation={investigation} setCurrentPage={setCurrentPage} />
 
-        {/* === ПЕРСОНАЛЬНЫЙ ОРАКУЛ === */}
+        {/* === ПЕРСОНАЛЬНЫЙ ОРАКУЛ (золотой, бросается в глаза) === */}
         <div
           onClick={() => setCurrentPage("oracle")}
           style={{
-            background: "linear-gradient(135deg,rgba(139,92,246,0.18),rgba(245,158,11,0.1))",
-            border: "1px solid rgba(139,92,246,0.4)",
+            background: "linear-gradient(135deg,rgba(245,158,11,0.18),rgba(217,119,6,0.12),rgba(251,191,36,0.10))",
+            border: "1.5px solid rgba(245,158,11,0.55)",
             borderRadius: 18, padding: "16px 18px",
             cursor: "pointer", position: "relative", overflow: "hidden",
+            boxShadow: "0 4px 24px rgba(245,158,11,0.15), 0 1px 4px rgba(245,158,11,0.10)",
           }}
         >
-          <div style={{ position: "absolute", right: -12, top: -12, fontSize: 72, opacity: 0.07, animation: "float 3s ease-in-out infinite" }}>🔮</div>
+          <div style={{ position: "absolute", right: -12, top: -12, fontSize: 72, opacity: 0.10, animation: "float 3s ease-in-out infinite" }}>🔮</div>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{
               width: 52, height: 52, borderRadius: 16, flexShrink: 0,
-              background: "linear-gradient(135deg,#8b5cf6,#6d28d9)",
+              background: "linear-gradient(135deg,#f59e0b,#d97706,#b45309)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 28, boxShadow: "0 4px 16px rgba(139,92,246,0.3)",
+              fontSize: 28, boxShadow: "0 4px 16px rgba(245,158,11,0.35)",
             }}>🔮</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{
+                fontSize: 15, fontWeight: 800, marginBottom: 4,
+                display: "flex", alignItems: "center", gap: 8,
+                background: "linear-gradient(90deg,#fbbf24,#f59e0b,#fbbf24)",
+                backgroundSize: "200%",
+                WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+                animation: "shimmer 3s linear infinite",
+              }}>
                 Персональный Оракул
                 {!canAccess("premium") && (
-                  <span style={{ fontSize: 9, fontWeight: 700, background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#fff", padding: "2px 7px", borderRadius: 6 }}>👑</span>
+                  <span style={{
+                    fontSize: 9, fontWeight: 700,
+                    background: "linear-gradient(135deg,#f59e0b,#d97706)",
+                    color: "#fff", padding: "2px 7px", borderRadius: 6,
+                    WebkitBackgroundClip: "initial", WebkitTextFillColor: "initial",
+                  }}>👑</span>
                 )}
               </div>
-              <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.55 }}>
+              <div style={{ fontSize: 12, color: "var(--gold2, #fbbf24)", lineHeight: 1.55, opacity: 0.85 }}>
                 Помнит всё о тебе. Отвечает на любые вопросы — о любви, пути, страхах.
               </div>
             </div>
-            <div style={{ fontSize: 20, color: canAccess("premium") ? "var(--accent)" : "var(--text2)" }}>
+            <div style={{ fontSize: 20, color: canAccess("premium") ? "#fbbf24" : "var(--text2)" }}>
               {canAccess("premium") ? "→" : "🔒"}
             </div>
           </div>
