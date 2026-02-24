@@ -8,6 +8,7 @@ import { useState, useRef, useEffect } from "react";
 import { AppHeader, Btn, Card } from "../components/UI";
 import { buildClaudeSystemPrompt } from "../hooks/useAppState";
 import TelegramSDK from "../api/telegram";
+import { updateUserField } from "../api/backend";
 
 const SONNET = "claude-sonnet-4-6";
 const ENDPOINT = "/api/claude";
@@ -98,10 +99,15 @@ export default function OracleChat({ state, showToast }) {
       const toStore = messages.slice(-MAX_STORED_MESSAGES);
       localStorage.setItem(ORACLE_MESSAGES_KEY, JSON.stringify(toStore));
     } catch { /* localStorage full */ }
-    // Дебаунс sync в Supabase через updateUser (5 сек)
+    // Дебаунс sync в Supabase (5 сек после последнего изменения)
     clearTimeout(syncTimerRef.current);
     syncTimerRef.current = setTimeout(() => {
-      updateUser?.({ oracle_messages: messages.slice(-MAX_STORED_MESSAGES) });
+      // Берём последние 50 сообщений, чтобы не превысить лимит 32 КБ на /api/user
+      const toSync = messages.slice(-50);
+      // Обновляем локальный стейт
+      updateUser?.({ oracle_messages: toSync });
+      // Сохраняем в Supabase напрямую (updateUser только localStorage)
+      updateUserField({ oracle_messages: toSync }).catch(() => {});
     }, 5000);
     return () => clearTimeout(syncTimerRef.current);
   }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
