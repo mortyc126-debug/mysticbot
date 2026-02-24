@@ -448,63 +448,9 @@ export const useAppState = () => {
     };
   }, [onboarding]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Ежедневное уведомление через Bot API при открытии приложения.
-  // Отправляется 1 раз в день (бэкенд дедуплицирует по полю notif_daily_sent).
-  // Тип выбирается умно: приоритет → астро-событие → угроза серии → ротация функций.
-  // Пользователь увидит его в Telegram при следующей проверке мессенджера —
-  // это напомнит ему вернуться в приложение.
-  useEffect(() => {
-    if (onboarding) return;
-    const localUser = loadFromLocal("user", MOCK_USER);
-    if (!localUser.registered) return;
-
-    // Локальная метка: дополнительная защита от двойной отправки в одной сессии
-    const today = new Date().toDateString();
-    if (localStorage.getItem("mystic_notif_daily_sent") === today) return;
-
-    const t = setTimeout(() => {
-      const user = loadFromLocal("user", MOCK_USER);
-      const streak = user.streak_days || 0;
-      const sign   = user.sun_sign || null;
-
-      // Карта дня (детерминированная по дню)
-      const card = MAJOR_ARCANA[Math.floor(Date.now() / 86400000) % MAJOR_ARCANA.length];
-
-      // Астро-события сегодня из календаря
-      const todayEvents = getUpcomingEvents(1).filter(e => {
-        const d = new Date(e.date);
-        return d.toDateString() === today;
-      });
-      const todayEvent = todayEvents[0] || null;
-
-      // ── Выбор типа уведомления ──────────────────────────────
-      let type;
-      let context = { sign, streak, card_name: card?.name };
-
-      if (todayEvent) {
-        // 1. Приоритет: астрологическое событие сегодня
-        const isMoon = todayEvent.type === "full_moon" || todayEvent.type === "new_moon";
-        type = isMoon ? "moon_event" : "astro_event";
-        context = { ...context, event_label: todayEvent.label, event_ritual: todayEvent.ritual };
-      } else if (streak >= 2) {
-        // 2. Если есть активная серия — напомнить её не терять (через день)
-        const dayIndex = Math.floor(Date.now() / 86400000);
-        type = dayIndex % 2 === 0 ? "streak_warning" : "daily_card";
-      } else {
-        // 3. Ротация по функциям: карта → таро → гороскоп → дневник снов → руны
-        const ROTATION = ["daily_card", "tarot_reminder", "daily_horoscope", "dream_reminder", "rune_reminder"];
-        type = ROTATION[Math.floor(Date.now() / 86400000) % ROTATION.length];
-      }
-
-      TelegramSDK.notifications.send({ type, context })
-        .then(sent => {
-          if (sent) localStorage.setItem("mystic_notif_daily_sent", today);
-        })
-        .catch(() => {});
-    }, 4000); // задержка 4 сек — не блокируем старт
-
-    return () => clearTimeout(t);
-  }, [onboarding]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Уведомления перенесены полностью в серверный CRON (GET /api/notifications).
+  // CRON сам выбирает тип уведомления (астро-событие, серия, ротация) для каждого
+  // пользователя и отправляет через Telegram Bot API — работает даже когда приложение закрыто.
 
   // Проверяем статус администратора через сервер (только для зарегистрированных).
   // Бэкенд возвращает 403 если telegram_id не в ADMIN_TELEGRAM_IDS (env).
