@@ -1349,17 +1349,19 @@ export const useAppState = () => {
     const dominantTopic    = sorted[0]?.[0] || null;
     const dominantStrength = sorted[0]?.[1] || 0;
 
-    // Полный дневник — эмоциональная история пользователя
-    const diaryFull = diary.map(e => {
+    // Дневник — последние записи (ограничиваем объём для системного промта)
+    // Берём последние 7 записей и обрезаем каждую до 300 символов, чтобы не раздувать тело запроса
+    const diaryFull = diary.slice(0, 7).map(e => {
       const date = e.date ? new Date(e.date).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : "";
-      return `[${date}] ${e.mood || "📝"} ${e.title ? `«${e.title}»` : ""}: ${e.text || ""}`.trim();
-    }).join("\n");
+      const text = (e.text || "").slice(0, 300);
+      return `[${date}] ${e.mood || "📝"} ${e.title ? `«${e.title}»` : ""}: ${text}`.trim();
+    }).join("\n").slice(0, 2000);
 
-    // Таро — все гадания: вопрос → карты (без даты, без интерпретации)
-    const tarotFull = (tarotHistory || []).map(e => {
+    // Таро — последние 15 гаданий (вопрос + карты, без интерпретации)
+    const tarotFull = (tarotHistory || []).slice(0, 15).map(e => {
       const cards = (e.cards || []).map(c => c.name + (c.reversed ? "↕" : "")).join(", ");
-      return `${e.question || "без вопроса"} — ${cards}`;
-    }).join("\n");
+      return `${(e.question || "без вопроса").slice(0, 100)} — ${cards}`;
+    }).join("\n").slice(0, 1500);
 
     // Время суток
     const hour = new Date().getHours();

@@ -12,7 +12,6 @@ function drawCards(count) {
 export default function Tarot({ state, showToast }) {
   const { user, canAccess, addLuck, addTarotReading, getContextForClaude,
           canDoReading, getReadingInfo, tarotHistory,
-          confirmPrediction, getLastUnconfirmedReading, getEngagementHooks,
           markDailyCardUsed, addDailyEnergy, oracleMemory, getReferralCode,
           shopPurchases, useShopPurchase } = state;
   const [phase, setPhase] = useState("select"); // select | question | reveal | result
@@ -141,23 +140,6 @@ export default function Tarot({ state, showToast }) {
         {/* ФАЗА: Выбор расклада */}
         {phase === "select" && (
           <>
-            {/* === БАННЕР: ПОДТВЕРЖДЕНИЕ ПРЕДСКАЗАНИЯ === */}
-            <UnconfirmedBanner
-              reading={getLastUnconfirmedReading()}
-              onConfirm={(id, result) => {
-                confirmPrediction(id, result);
-                if (result === "yes")    showToast("✨ +5 💫 Предсказание сбылось!");
-                if (result === "partly") showToast("🌗 +2 💫 Частичное совпадение");
-                if (result === "no")     showToast("🌑 Записано. Карты учтут это.");
-              }}
-            />
-
-            {/* === ПАТТЕРН: ПОВТОРЯЮЩАЯСЯ КАРТА === */}
-            <RepeatingCardBanner tarotHistory={tarotHistory} />
-
-            {/* === ЭНЕРГЕТИЧЕСКОЕ ОКНО === */}
-            <EnergyWindowBanner hooks={getEngagementHooks()} sign={user.sun_sign} />
-
             <SLabel>Выбери расклад</SLabel>
             {SPREADS.map(spread => {
               const accessible = canAccess(spread.tier);
@@ -378,127 +360,3 @@ export default function Tarot({ state, showToast }) {
   );
 }
 
-// ============================================================
-// БАННЕР: ПОДТВЕРЖДЕНИЕ ВЧЕРАШНЕГО ПРЕДСКАЗАНИЯ
-// ============================================================
-function UnconfirmedBanner({ reading, onConfirm }) {
-  if (!reading) return null;
-  const date = new Date(reading.date).toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
-  return (
-    <div style={{
-      background: "linear-gradient(135deg,rgba(245,158,11,0.1),rgba(139,92,246,0.08))",
-      border: "1px solid rgba(245,158,11,0.35)",
-      borderRadius: 16, padding: "14px 16px",
-      animation: "fadeInUp 0.4s ease",
-    }}>
-      <div style={{ fontSize: 12, fontWeight: 800, color: "var(--gold2)", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
-        <span>🔭</span> Предсказание от {date}
-      </div>
-      <div style={{ fontSize: 12, color: "var(--text)", lineHeight: 1.6, marginBottom: 12 }}>
-        {reading.prediction_seed}
-      </div>
-      <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 10, fontWeight: 600 }}>
-        Это сбылось?
-      </div>
-      <div style={{ display: "flex", gap: 7 }}>
-        {[
-          ["yes",    "✅ Да",        "#4ade80", "rgba(34,197,94,0.12)",  "rgba(34,197,94,0.3)"],
-          ["partly", "🌗 Частично",  "var(--gold2)", "rgba(245,158,11,0.1)", "rgba(245,158,11,0.3)"],
-          ["no",     "❌ Нет",       "#f87171", "rgba(239,68,68,0.1)", "rgba(239,68,68,0.3)"],
-        ].map(([val, label, color, bg, border]) => (
-          <button key={val} onClick={() => onConfirm(reading.id, val)} style={{
-            flex: 1, padding: "8px 4px", borderRadius: 10, border: `1px solid ${border}`,
-            background: bg, color, fontSize: 11, fontWeight: 700, cursor: "pointer",
-          }}>
-            {label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// БАННЕР: ПОВТОРЯЮЩАЯСЯ КАРТА
-// ============================================================
-function RepeatingCardBanner({ tarotHistory }) {
-  if (!tarotHistory || tarotHistory.length < 2) return null;
-  const freq = {};
-  tarotHistory.slice(0, 7).forEach(r =>
-    (r.cards || []).forEach(c => { freq[c.name] = (freq[c.name] || 0) + 1; })
-  );
-  const [cardName, count] = Object.entries(freq).find(([, n]) => n >= 2) || [];
-  if (!cardName) return null;
-
-  // Найти карточку для её emoji
-  const allCards = tarotHistory.flatMap(r => r.cards || []);
-  const emoji = allCards.find(c => c.name === cardName)?.emoji || "🃏";
-
-  return (
-    <div style={{
-      background: "rgba(139,92,246,0.08)",
-      border: "1px solid rgba(139,92,246,0.25)",
-      borderRadius: 14, padding: "11px 14px",
-      display: "flex", alignItems: "center", gap: 12,
-    }}>
-      <span style={{ fontSize: 28 }}>{emoji}</span>
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--accent)", marginBottom: 3 }}>
-          ✦ Карта возвращается снова
-        </div>
-        <div style={{ fontSize: 11, color: "var(--text2)", lineHeight: 1.55 }}>
-          «{cardName}» появилась в {count} из твоих последних раскладов. Это не случайность — она несёт послание, которое ты ещё не услышал(а).
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// БАННЕР: ЭНЕРГЕТИЧЕСКОЕ ОКНО
-// ============================================================
-function EnergyWindowBanner({ hooks, sign }) {
-  const { isWindowOpen, hoursLeft, peakHour } = hooks;
-  const ampm = peakHour >= 18 ? "вечером" : peakHour >= 12 ? "днём" : "утром";
-  const peakStr = `${peakHour}:00`;
-
-  if (isWindowOpen) {
-    return (
-      <div style={{
-        background: "linear-gradient(135deg,rgba(34,197,94,0.1),rgba(139,92,246,0.06))",
-        border: "1px solid rgba(34,197,94,0.3)",
-        borderRadius: 14, padding: "11px 14px",
-        display: "flex", alignItems: "center", gap: 10,
-      }}>
-        <span style={{ fontSize: 22 }}>⚡</span>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 800, color: "#4ade80", marginBottom: 2 }}>
-            Энергетическое окно открыто
-          </div>
-          <div style={{ fontSize: 11, color: "var(--text2)" }}>
-            Для {sign} сейчас лучшее время гадания — точность карт максимальна.
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (hoursLeft <= 6) {
-    return (
-      <div style={{
-        background: "rgba(245,158,11,0.07)",
-        border: "1px solid rgba(245,158,11,0.2)",
-        borderRadius: 14, padding: "11px 14px",
-        display: "flex", alignItems: "center", gap: 10,
-      }}>
-        <span style={{ fontSize: 20 }}>🕐</span>
-        <div style={{ fontSize: 11, color: "var(--text2)" }}>
-          Энергетический пик {sign} — {peakStr} {ampm}.
-          <span style={{ color: "var(--gold2)", fontWeight: 700 }}> Через {hoursLeft}ч</span> карты будут сильнее.
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-}

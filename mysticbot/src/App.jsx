@@ -17,6 +17,8 @@ import BottomNav from "./components/BottomNav";
 import LuckToast from "./components/LuckToast";
 import TelegramSDK from "./api/telegram";
 import BackendAPI from "./api/backend";
+import ClaudeAPI from "./api/claude";
+import { getZodiacSign } from "./hooks/useAppState";
 
 // ============================================================
 // TELEGRAM WEBAPP — инициализация
@@ -72,6 +74,14 @@ export default function App() {
   // может обновить независимо от клиента (админ изменил подписку в БД, пришёл реферал и т.д.)
   useEffect(() => {
     if (onboarding) return;
+
+    // Detect and save timezone once (minutes east of UTC, e.g. +180 for UTC+3)
+    if (state.user?.utc_offset == null) {
+      const utcOffset = -new Date().getTimezoneOffset();
+      state.updateUser({ utc_offset: utcOffset });
+      BackendAPI.syncUser({ utc_offset: utcOffset }).catch(() => {});
+    }
+
     BackendAPI.fetchUser().then(serverUser => {
       if (!serverUser) return;
       const updates = {};
@@ -104,6 +114,39 @@ export default function App() {
       if (serverUser.base_subscription_tier) {
         updates.base_subscription_tier  = serverUser.base_subscription_tier;
         updates.base_subscription_until = serverUser.base_subscription_until ?? null;
+      }
+
+      // Восстанавливаем данные рождения с сервера если локальный кэш пустой
+      if (serverUser.birth_time && !state.user?.birth_time) {
+        updates.birth_time = serverUser.birth_time;
+      }
+      if (serverUser.birth_place && !state.user?.birth_place) {
+        updates.birth_place = serverUser.birth_place;
+      }
+
+      // Пересчитываем знак Луны и Асцендент если они отсутствуют, но есть дата рождения
+      const needsNatal = serverUser.birth_date &&
+        (!serverUser.moon_sign || !state.user?.moon_sign);
+      if (needsNatal) {
+        const bd = serverUser.birth_date || state.user?.birth_date;
+        const bt = serverUser.birth_time || state.user?.birth_time || null;
+        const bp = serverUser.birth_place || state.user?.birth_place || null;
+        if (bd) {
+          ClaudeAPI.calculateNatalSigns({
+            birthDate: bd,
+            birthTime: bt,
+            birthPlace: bp,
+            sunSign: getZodiacSign(bd),
+          }).then(result => {
+            if (result) {
+              state.updateUser(result);
+              BackendAPI.syncUser({
+                moon_sign: result.moon_sign,
+                ascendant: result.ascendant,
+              }).catch(() => {});
+            }
+          }).catch(() => {});
+        }
       }
 
       if (Object.keys(updates).length > 0) {
