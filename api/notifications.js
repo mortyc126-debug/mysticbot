@@ -74,8 +74,8 @@ const DAILY_DEDUP_FIELD = {
   rune_reminder:   "notif_daily_sent",
 };
 
-// ── Шаблоны для CRON (ротация по дням) ──────────────────────
-const CRON_POOL = [
+// ── Шаблоны для CRON (ротация по дням — фоллбэк) ────────────
+const CRON_ROTATION = [
   (ctx) => ({
     text: `🔮 ${ctx.sign || "Звёзды"}, твой гороскоп на сегодня готов.\n\nОткрой приложение — узнай, что ждёт тебя сегодня.`,
     btn: "🌟 Читать гороскоп",
@@ -88,9 +88,6 @@ const CRON_POOL = [
     text: `🎴 Есть вопрос? Карты готовы ответить.\n\nРасклад занимает меньше минуты, а ответ может изменить многое.`,
     btn: "🎴 Разложить карты",
   }),
-  (ctx) => ctx.streak >= 2
-    ? { text: `🔥 Серия ${ctx.streak} дн. — не теряй!\n\nЗагляни сегодня, чтобы сохранить свою серию и получить бонус 💫`, btn: "⚡ Продолжить серию" }
-    : { text: `✨ Новый день — новые знаки.\n\nОткрой МистикУм и узнай, что говорят звёзды.`, btn: "🔮 Открыть" },
   () => ({
     text: `😴 Что снилось этой ночью?\n\nЗапиши сны пока свежи — Оракул расшифрует скрытые послания.`,
     btn: "📔 Записать сон",
@@ -104,6 +101,57 @@ const CRON_POOL = [
     btn: "🔮 Спросить Оракула",
   }),
 ];
+
+// ── Мистический календарь 2026: ключевые даты для уведомлений ──
+const ASTRO_EVENTS_2026 = [
+  { date: "01-03", type: "new_moon",  label: "🌑 Новолуние в Козероге",     ritual: "Ставь финансовые намерения" },
+  { date: "01-18", type: "full_moon", label: "🌕 Полнолуние в Раке",        ritual: "Отпусти старые обиды" },
+  { date: "02-01", type: "new_moon",  label: "🌑 Новолуние в Водолее",      ritual: "Загадай желания на дружбу и свободу" },
+  { date: "02-17", type: "full_moon", label: "🌕 Полнолуние во Льве",       ritual: "Прояви себя, покажи миру свой свет" },
+  { date: "03-03", type: "new_moon",  label: "🌑 Новолуние в Рыбах",        ritual: "Доверься интуиции, загадай духовное" },
+  { date: "03-14", type: "eclipse",   label: "🌑✨ Полное лунное затмение", ritual: "Мощнейший день: отпусти всё лишнее" },
+  { date: "03-20", type: "equinox",   label: "🌿 Весеннее равноденствие",    ritual: "Очисти пространство, начни новый цикл" },
+  { date: "03-29", type: "eclipse",   label: "☀️✨ Частичное солнечное затмение", ritual: "Новые начинания обретают силу" },
+  { date: "04-02", type: "new_moon",  label: "🌑 Новолуние в Овне",         ritual: "Смелые намерения и новые проекты" },
+  { date: "04-16", type: "full_moon", label: "🌕 Полнолуние в Весах",       ritual: "Гармонизируй отношения" },
+  { date: "05-01", type: "new_moon",  label: "🌑 Новолуние в Тельце",       ritual: "Намерения на достаток и красоту" },
+  { date: "05-16", type: "full_moon", label: "🌕 Полнолуние в Скорпионе",   ritual: "Трансформация и глубокие перемены" },
+  { date: "06-14", type: "full_moon", label: "🌕 Полнолуние в Стрельце",    ritual: "Расширяй горизонты" },
+  { date: "06-21", type: "solstice",  label: "☀️ Летнее солнцестояние",      ritual: "Разожги костёр намерений" },
+  { date: "07-14", type: "full_moon", label: "🌕 Полнолуние в Козероге",     ritual: "Подведи итоги полугодия" },
+  { date: "08-12", type: "full_moon", label: "🌕 Полнолуние в Водолее",     ritual: "Освободись от ограничений" },
+  { date: "09-07", type: "eclipse",   label: "🌑✨ Полное лунное затмение", ritual: "Переломный момент — прислушайся к знакам" },
+  { date: "09-22", type: "equinox",   label: "🍂 Осеннее равноденствие",     ritual: "Благодарность и завершение циклов" },
+  { date: "09-22", type: "eclipse",   label: "☀️✨ Частичное солнечное затмение", ritual: "Мощный портал перемен" },
+  { date: "10-10", type: "full_moon", label: "🌕 Полнолуние в Овне",        ritual: "Действуй! Энергия на пике" },
+  { date: "11-09", type: "full_moon", label: "🌕 Полнолуние в Тельце",      ritual: "Укрепи то, что ценно" },
+  { date: "12-08", type: "full_moon", label: "🌕 Полнолуние в Близнецах",   ritual: "Подведи итоги года" },
+  { date: "12-21", type: "solstice",  label: "❄️ Зимнее солнцестояние",      ritual: "Самая длинная ночь — медитируй" },
+];
+
+// Выбрать тип уведомления для конкретного пользователя (умная логика)
+function chooseNotificationType(ctx, dayIndex) {
+  // 1. Приоритет: астрологическое событие сегодня
+  if (ctx.todayEvent) {
+    const ev = ctx.todayEvent;
+    const isMoon = ev.type === "full_moon" || ev.type === "new_moon";
+    const type = isMoon ? "moon_event" : "astro_event";
+    return {
+      type,
+      context: { ...ctx, event_label: ev.label, event_ritual: ev.ritual, phase: isMoon ? ev.label.split(" ")[0] : undefined },
+    };
+  }
+
+  // 2. Если есть активная серия >= 2 дней — напомнить не терять (через день чередуем)
+  if (ctx.streak >= 2 && dayIndex % 2 === 0) {
+    return { type: "streak_warning", context: ctx };
+  }
+
+  // 3. Ротация по функциям
+  const templateFn = CRON_ROTATION[dayIndex % CRON_ROTATION.length];
+  const { text, btn } = templateFn(ctx);
+  return { type: "__raw", text, btn };
+}
 
 // ── Общая функция отправки в Telegram ───────────────────────
 const sendTelegramMessage = async (token, chatId, text, replyMarkup) => {
@@ -154,6 +202,11 @@ async function handleCron(req, res) {
     const dayIndex = Math.floor(Date.now() / 86400000);
     let sent = 0, skipped = 0, blocked = 0, errors = 0;
 
+    // Проверяем астро-событие на сегодня (MM-DD формат)
+    const nowDate = new Date();
+    const mmdd = `${String(nowDate.getMonth() + 1).padStart(2, "0")}-${String(nowDate.getDate()).padStart(2, "0")}`;
+    const todayEvent = ASTRO_EVENTS_2026.find(e => e.date === mmdd) || null;
+
     for (const row of users) {
       const userData = row.data || {};
 
@@ -162,17 +215,30 @@ async function handleCron(req, res) {
 
       const sign = userData.sun_sign || null;
       const streak = userData.streak_days || 0;
-      const ctx = { sign, streak };
+      const ctx = { sign, streak, todayEvent };
 
-      const templateFn = CRON_POOL[dayIndex % CRON_POOL.length];
-      const { text, btn } = templateFn(ctx);
+      // Умный выбор типа уведомления для каждого пользователя
+      const chosen = chooseNotificationType(ctx, dayIndex);
+
+      let notifText, btnLabel;
+      if (chosen.type === "__raw") {
+        // Прямой шаблон из ротации
+        notifText = chosen.text;
+        btnLabel = chosen.btn;
+      } else {
+        // Шаблон из TEMPLATES
+        const templateFn = TEMPLATES[chosen.type] || TEMPLATES.custom;
+        const result = templateFn(chosen.context || ctx);
+        notifText = result.text;
+        btnLabel = result.btn;
+      }
 
       const replyMarkup = webappUrl
-        ? { inline_keyboard: [[{ text: btn, web_app: { url: webappUrl } }]] }
+        ? { inline_keyboard: [[{ text: btnLabel, web_app: { url: webappUrl } }]] }
         : null;
 
       try {
-        await sendTelegramMessage(token, row.telegram_id, text, replyMarkup);
+        await sendTelegramMessage(token, row.telegram_id, notifText, replyMarkup);
         sent++;
 
         const merged = { ...userData, notif_cron_sent: today };

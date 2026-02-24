@@ -566,6 +566,10 @@ export default function Onboarding({ state, showToast }) {
             </div>
 
             <Btn onClick={finish} size="lg" disabled={!(agreeTerms && agreePrivacy && agreeAge)}>🔮 Открыть Мистикум</Btn>
+            <button onClick={prev} style={{
+              marginTop: 8, background: "none", border: "none", color: "var(--text2)",
+              fontSize: 13, cursor: "pointer", padding: 8, width: "100%", textAlign: "center",
+            }}>← Вернуться и изменить данные</button>
           </div>
         )}
 

@@ -13,7 +13,8 @@ export default function Tarot({ state, showToast }) {
   const { user, canAccess, addLuck, addTarotReading, getContextForClaude,
           canDoReading, getReadingInfo, tarotHistory,
           confirmPrediction, getLastUnconfirmedReading, getEngagementHooks,
-          markDailyCardUsed, addDailyEnergy, oracleMemory, getReferralCode } = state;
+          markDailyCardUsed, addDailyEnergy, oracleMemory, getReferralCode,
+          shopPurchases, useShopPurchase } = state;
   const [phase, setPhase] = useState("select"); // select | question | reveal | result
   const [selectedSpread, setSelectedSpread] = useState(null);
   const [question, setQuestion] = useState("");
@@ -21,25 +22,61 @@ export default function Tarot({ state, showToast }) {
   const [interpretation, setInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  // Тип покупки из магазина, которая будет списана при draw (null = бесплатная попытка)
+  const [sessionShopKey, setSessionShopKey] = useState(null);
+
+  // Маппинг: тип расклада → ключ покупки в магазине, которая разблокирует доступ к нему
+  const SPREAD_SHOP_MAP = {
+    three_cards:  "tarot_three",
+    relationship: "tarot_three",
+  };
 
   const handleSelectSpread = (spread) => {
+    let shopKey = null;
+
+    // 1. Проверяем доступ к тарифу
     if (!canAccess(spread.tier)) {
-      setShowUpgrade(true);
-      return;
+      // Фоллбэк: проверяем покупки из магазина удачи для VIP/Premium раскладов
+      const shopKeyForSpread = SPREAD_SHOP_MAP[spread.id];
+      if (shopKeyForSpread && (shopPurchases?.[shopKeyForSpread] || 0) > 0) {
+        shopKey = shopKeyForSpread; // Будет списано при draw
+      } else {
+        setShowUpgrade(true);
+        return;
+      }
     }
-    // Проверка лимита гаданий
-    if (!canDoReading(spread.id)) {
-      const info = getReadingInfo(spread.id);
-      const period = info.type === "weekly" ? "на этой неделе" : "сегодня";
-      showToast(`⏳ Лимит исчерпан: ${info.used}/${info.max} ${period}`);
-      return;
+
+    // 2. Проверяем лимит бесплатных гаданий (только если используем бесплатную попытку)
+    if (!shopKey && !canDoReading(spread.id)) {
+      // Бесплатные попытки исчерпаны — проверяем покупки из магазина
+      const extraPurchased = shopPurchases?.tarot_extra || 0;
+      const spreadShopKey = SPREAD_SHOP_MAP[spread.id];
+      const spreadPurchased = spreadShopKey ? (shopPurchases?.[spreadShopKey] || 0) : 0;
+
+      if (extraPurchased > 0) {
+        shopKey = "tarot_extra";
+      } else if (spreadPurchased > 0) {
+        shopKey = spreadShopKey;
+      } else {
+        const info = getReadingInfo(spread.id);
+        const period = info.type === "weekly" ? "на этой неделе" : "сегодня";
+        showToast(`⏳ Лимит исчерпан: ${info.used}/${info.max} ${period}`);
+        return;
+      }
     }
+
+    setSessionShopKey(shopKey);
     setSelectedSpread(spread);
     setPhase("question");
   };
 
   const handleDraw = async () => {
     if (!selectedSpread) return;
+    // Списываем купленную попытку из магазина (если используется)
+    if (sessionShopKey) {
+      useShopPurchase?.(sessionShopKey);
+      setSessionShopKey(null);
+    }
     setLoading(true);
     const drawn = drawCards(selectedSpread.cards);
     setCards(drawn);
@@ -83,6 +120,7 @@ export default function Tarot({ state, showToast }) {
     setQuestion("");
     setCards([]);
     setInterpretation("");
+    setSessionShopKey(null);
   };
 
   const handleShareResult = () => {
