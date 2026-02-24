@@ -108,6 +108,27 @@ const ASTRO_EVENTS_2026 = [
   { date: "12-21", type: "solstice",  label: "❄️ Зимнее солнцестояние",      ritual: "Самая длинная ночь — медитируй" },
 ];
 
+// Диапазоны местного часа, в которые допустима рассылка слота.
+// Пользователи с известным utc_offset получают уведомление только в своё "правильное" время.
+// Пользователи без utc_offset получают уведомление всегда (не знаем их часового пояса).
+const SLOT_LOCAL_HOURS = {
+  morning:   [5, 10],
+  midday:    [9, 14],
+  afternoon: [12, 17],
+  evening:   [16, 22],
+  night:     [19, 24],
+};
+
+// Проверяет, попадает ли текущий момент в слот для данного utc_offset (минут восточнее UTC)
+function isSlotTimeForUser(slot, utcOffsetMinutes) {
+  if (utcOffsetMinutes == null) return true; // часовой пояс неизвестен — отправляем
+  const nowUtcMinutes = new Date().getUTCHours() * 60 + new Date().getUTCMinutes();
+  const localMinutes  = ((nowUtcMinutes + utcOffsetMinutes) % 1440 + 1440) % 1440;
+  const localHour     = Math.floor(localMinutes / 60);
+  const [from, to]    = SLOT_LOCAL_HOURS[slot] || [0, 24];
+  return localHour >= from && localHour < to;
+}
+
 // ── Контент по слотам — каждый слот отличается темой ────────
 // Слот определяет смысловую "дорожку" — что актуально в это время суток.
 // Если сегодня астро-событие, оно имеет приоритет в любом слоте.
@@ -115,7 +136,7 @@ const SLOT_TEMPLATES = {
   // 06:00 UTC — утро: приветствие + гороскоп
   morning: [
     (ctx) => ({
-      text: `🌅 Доброе утро${ctx.sign ? `, ${ctx.sign}` : ""}!\n\nЗвёзды уже выстроили путь на сегодня. Открой свой персональный гороскоп и узнай, чего ждать ✨`,
+      text: `🌅 Доброе утро${ctx.name ? `, <b>${ctx.name}</b>` : ctx.sign ? `, ${ctx.sign}` : ""}!\n\nЗвёзды уже выстроили путь на сегодня. Открой свой персональный гороскоп и узнай, чего ждать ✨`,
       btn: "🌟 Гороскоп на сегодня",
     }),
     (ctx) => ({
@@ -123,7 +144,7 @@ const SLOT_TEMPLATES = {
       btn: "🃏 Карта дня",
     }),
     (ctx) => ({
-      text: `🌄 ${ctx.sign || "Звёзды"}, сегодня особый день.\n\nПолучи утреннее послание от Оракула — он уже видит твой путь 🔮`,
+      text: `🌄 ${ctx.name ? `<b>${ctx.name}</b>` : ctx.sign || "Звёзды"}, сегодня особый день.\n\nПолучи утреннее послание от Оракула — он уже видит твой путь 🔮`,
       btn: "🔮 Утреннее послание",
     }),
   ],
@@ -175,10 +196,10 @@ const SLOT_TEMPLATES = {
   // 20:00 UTC — ночь: стрик, оракул, не прерывай
   night: [
     (ctx) => (ctx.streak >= 2 ? {
-      text: `🔥 Серия ${ctx.streak} дн. — не прерывай сегодня!\n\nОракул ждёт твоего визита. Загляни до полуночи — сохрани стрик и получи бонусные 💫`,
+      text: `🔥 ${ctx.name ? `<b>${ctx.name}</b>, серия` : "Серия"} ${ctx.streak} дн. — не прерывай сегодня!\n\nОракул ждёт твоего визита. Загляни до полуночи — сохрани стрик и получи бонусные 💫`,
       btn: "⚡ Сохранить серию",
     } : {
-      text: `🌙 Ночь — особое время для Оракула.\n\nТишина помогает услышать звёзды. Задай вопрос, который не выходит из головы 🔮`,
+      text: `🌙 ${ctx.name ? `<b>${ctx.name}</b>, ночь` : "Ночь"} — особое время для Оракула.\n\nТишина помогает услышать звёзды. Задай вопрос, который не выходит из головы 🔮`,
       btn: "🔮 Спросить Оракула",
     }),
     () => ({
@@ -186,7 +207,7 @@ const SLOT_TEMPLATES = {
       btn: "🃏 Карта на завтра",
     }),
     (ctx) => ({
-      text: `✨ ${ctx.sign || "Звёзды"}, как прошёл твой день?\n\nЗапиши ощущения в дневник или спроси Оракула о завтра — он отвечает даже ночью 🔮`,
+      text: `✨ ${ctx.name ? `<b>${ctx.name}</b>` : ctx.sign || "Звёзды"}, как прошёл твой день?\n\nЗапиши ощущения в дневник или спроси Оракула о завтра — он отвечает даже ночью 🔮`,
       btn: "🔮 Открыть МистикУм",
     }),
   ],
@@ -293,9 +314,15 @@ async function handleCron(req, res) {
       // Дедупликация: уже отправляли этот слот сегодня?
       if (userData[dedupField] === today) { skipped++; continue; }
 
-      const sign = userData.sun_sign || null;
+      // Фильтрация по часовому поясу: отправляем только если сейчас "правильное" время для пользователя
+      const utcOffsetMinutes = userData.utc_offset ?? null;
+      if (!isSlotTimeForUser(slot, utcOffsetMinutes)) { skipped++; continue; }
+
+      const sign   = userData.sun_sign || null;
       const streak = userData.streak_days || 0;
-      const ctx = { sign, streak };
+      const rawName = (userData.name || "").trim();
+      const name   = rawName ? rawName.charAt(0).toUpperCase() + rawName.slice(1) : null;
+      const ctx = { sign, streak, name };
 
       const { text: notifText, btn: btnLabel } = chooseSlotContent(slot, ctx, dayIndex, todayEvent);
 

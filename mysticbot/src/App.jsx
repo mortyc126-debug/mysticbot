@@ -74,6 +74,14 @@ export default function App() {
   // может обновить независимо от клиента (админ изменил подписку в БД, пришёл реферал и т.д.)
   useEffect(() => {
     if (onboarding) return;
+
+    // Detect and save timezone once (minutes east of UTC, e.g. +180 for UTC+3)
+    if (state.user?.utc_offset == null) {
+      const utcOffset = -new Date().getTimezoneOffset();
+      state.updateUser({ utc_offset: utcOffset });
+      BackendAPI.syncUser({ utc_offset: utcOffset }).catch(() => {});
+    }
+
     BackendAPI.fetchUser().then(serverUser => {
       if (!serverUser) return;
       const updates = {};

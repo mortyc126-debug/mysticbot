@@ -9,6 +9,19 @@
 import { createHmac } from "node:crypto";
 import { safeStringEqual } from "./_security.js";
 
+// Устанавливает кнопку меню (☰) в чате пользователя, которая сразу открывает приложение.
+const setMenuButton = async (token, chatId, webappUrl) => {
+  if (!webappUrl) return;
+  await fetch(`https://api.telegram.org/bot${token}/setChatMenuButton`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      menu_button: { type: "web_app", text: "🔮 МистикУм", web_app: { url: webappUrl } },
+    }),
+  }).catch(() => {});
+};
+
 const sendMessage = async (token, chatId, text, replyMarkup = null) => {
   const body = {
     chat_id: chatId,
@@ -68,35 +81,38 @@ export default async function handler(req, res) {
   const text = message.text || "";
   const firstName = message.from?.first_name || "друг";
 
-  // /start — открыть WebApp
+  // /start — установить кнопку меню и показать клавишу для мгновенного открытия приложения
   if (text.startsWith("/start")) {
-    const markup = webappUrl
+    // Устанавливаем кнопку ☰ → «МистикУм» — после этого приложение открывается одним касанием
+    if (webappUrl) await setMenuButton(token, chatId, webappUrl);
+
+    // ReplyKeyboardMarkup: постоянная кнопка-клавиша внизу чата, открывает WebApp сразу при нажатии
+    const replyKeyboard = webappUrl
       ? {
-          inline_keyboard: [
-            [
-              {
-                text: "🔮 Открыть MysticBot",
-                web_app: { url: webappUrl },
-              },
-            ],
-          ],
+          keyboard: [[{ text: "🔮 Открыть МистикУм", web_app: { url: webappUrl } }]],
+          resize_keyboard: true,
+          is_persistent: true,
         }
       : null;
 
     await sendMessage(
       token,
       chatId,
-      `✨ Привет, <b>${firstName}</b>!\n\nДобро пожаловать в <b>MysticBot</b> — твой личный мистический оракул.\n\nНажми кнопку ниже, чтобы открыть приложение 👇`,
-      markup
+      `✨ Привет, <b>${firstName}</b>! Добро пожаловать в <b>МистикУм</b> — твой персональный оракул.\n\n🔮 Нажми кнопку ниже — приложение откроется мгновенно 👇`,
+      replyKeyboard
     );
     return res.status(200).end();
   }
 
-  // Любое другое сообщение — подсказка
+  // Любое другое сообщение — напомнить про кнопку
+  const hintMarkup = webappUrl
+    ? { keyboard: [[{ text: "🔮 Открыть МистикУм", web_app: { url: webappUrl } }]], resize_keyboard: true, is_persistent: true }
+    : null;
   await sendMessage(
     token,
     chatId,
-    `🔮 Нажми /start или кнопку <b>«Открыть MysticBot»</b>, чтобы начать.`
+    `🔮 Нажми кнопку <b>«Открыть МистикУм»</b> внизу экрана или используй кнопку меню ☰`,
+    hintMarkup
   );
   return res.status(200).end();
 }
