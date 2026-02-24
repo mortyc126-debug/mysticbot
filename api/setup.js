@@ -31,7 +31,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "WEBAPP_URL не задан в env" });
   }
 
-  const webhookUrl = `${webappUrl}/api/telegram`;
+  const webhookUrl = `${webappUrl.replace(/\/$/, "")}/api/telegram`;
   const results    = {};
 
   // 1. Регистрация вебхука
