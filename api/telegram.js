@@ -81,17 +81,15 @@ export default async function handler(req, res) {
   const text = message.text || "";
   const firstName = message.from?.first_name || "друг";
 
-  // /start — установить кнопку меню и показать клавишу для мгновенного открытия приложения
+  // /start — установить кнопку меню и показать inline-кнопку прямо в сообщении
   if (text.startsWith("/start")) {
     // Устанавливаем кнопку ☰ → «МистикУм» — после этого приложение открывается одним касанием
     if (webappUrl) await setMenuButton(token, chatId, webappUrl);
 
-    // ReplyKeyboardMarkup: постоянная кнопка-клавиша внизу чата, открывает WebApp сразу при нажатии
-    const replyKeyboard = webappUrl
+    // InlineKeyboardMarkup: кнопка прямо внутри сообщения — заметнее и кликается без лишних шагов
+    const inlineMarkup = webappUrl
       ? {
-          keyboard: [[{ text: "🔮 Открыть МистикУм", web_app: { url: webappUrl } }]],
-          resize_keyboard: true,
-          is_persistent: true,
+          inline_keyboard: [[{ text: "🔮 Открыть МистикУм", web_app: { url: webappUrl } }]],
         }
       : null;
 
@@ -99,19 +97,19 @@ export default async function handler(req, res) {
       token,
       chatId,
       `✨ Привет, <b>${firstName}</b>! Добро пожаловать в <b>МистикУм</b> — твой персональный оракул.\n\n🔮 Нажми кнопку ниже — приложение откроется мгновенно 👇`,
-      replyKeyboard
+      inlineMarkup
     );
     return res.status(200).end();
   }
 
-  // Любое другое сообщение — напомнить про кнопку
+  // Любое другое сообщение — напомнить про кнопку (inline, прямо в сообщении)
   const hintMarkup = webappUrl
-    ? { keyboard: [[{ text: "🔮 Открыть МистикУм", web_app: { url: webappUrl } }]], resize_keyboard: true, is_persistent: true }
+    ? { inline_keyboard: [[{ text: "🔮 Открыть МистикУм", web_app: { url: webappUrl } }]] }
     : null;
   await sendMessage(
     token,
     chatId,
-    `🔮 Нажми кнопку <b>«Открыть МистикУм»</b> внизу экрана или используй кнопку меню ☰`,
+    `🔮 Нажми кнопку ниже или используй кнопку меню ☰, чтобы открыть <b>МистикУм</b>`,
     hintMarkup
   );
   return res.status(200).end();
