@@ -2,7 +2,14 @@
 // VERCEL SERVERLESS FUNCTION — Push-уведомления через Telegram Bot API
 //
 // POST /api/notifications  — одиночное уведомление конкретному пользователю
-// GET  /api/notifications  — CRON: массовая рассылка всем пользователям
+// GET  /api/notifications?slot=<slot>  — CRON: рассылка конкретного слота
+//
+// Слоты (до 5 в день):
+//   morning   — 06:00 UTC — гороскоп, астро-событие
+//   midday    — 10:00 UTC — карта дня / факт / мотивация
+//   afternoon — 13:00 UTC — лунный совет / совместимость / руны
+//   evening   — 17:00 UTC — запись в дневник / рефлексия
+//   night     — 20:00 UTC — оракул / стрик / не забудь о себе
 //
 // POST Body:
 //   type:    "daily_horoscope" | "daily_card" | "streak_warning" |
@@ -74,34 +81,6 @@ const DAILY_DEDUP_FIELD = {
   rune_reminder:   "notif_daily_sent",
 };
 
-// ── Шаблоны для CRON (ротация по дням — фоллбэк) ────────────
-const CRON_ROTATION = [
-  (ctx) => ({
-    text: `🔮 ${ctx.sign || "Звёзды"}, твой гороскоп на сегодня готов.\n\nОткрой приложение — узнай, что ждёт тебя сегодня.`,
-    btn: "🌟 Читать гороскоп",
-  }),
-  () => ({
-    text: `🃏 Карта дня ждёт тебя.\n\nКаждый день — новое послание. Открой свою карту и получи +1 💫`,
-    btn: "🃏 Открыть карту",
-  }),
-  () => ({
-    text: `🎴 Есть вопрос? Карты готовы ответить.\n\nРасклад занимает меньше минуты, а ответ может изменить многое.`,
-    btn: "🎴 Разложить карты",
-  }),
-  () => ({
-    text: `😴 Что снилось этой ночью?\n\nЗапиши сны пока свежи — Оракул расшифрует скрытые послания.`,
-    btn: "📔 Записать сон",
-  }),
-  (ctx) => ({
-    text: `ᚠ Руны${ctx.sign ? ` для ${ctx.sign}` : ""} говорят сегодня.\n\nБрось руны и узнай, какие силы действуют в твоей жизни.`,
-    btn: "ᚠ Бросить руны",
-  }),
-  () => ({
-    text: `🔮 Персональный Оракул помнит тебя.\n\nЗадай вопрос — о любви, пути или сомнениях. Он ответит.`,
-    btn: "🔮 Спросить Оракула",
-  }),
-];
-
 // ── Мистический календарь 2026: ключевые даты для уведомлений ──
 const ASTRO_EVENTS_2026 = [
   { date: "01-03", type: "new_moon",  label: "🌑 Новолуние в Козероге",     ritual: "Ставь финансовые намерения" },
@@ -129,28 +108,114 @@ const ASTRO_EVENTS_2026 = [
   { date: "12-21", type: "solstice",  label: "❄️ Зимнее солнцестояние",      ritual: "Самая длинная ночь — медитируй" },
 ];
 
-// Выбрать тип уведомления для конкретного пользователя (умная логика)
-function chooseNotificationType(ctx, dayIndex) {
-  // 1. Приоритет: астрологическое событие сегодня
-  if (ctx.todayEvent) {
-    const ev = ctx.todayEvent;
+// ── Контент по слотам — каждый слот отличается темой ────────
+// Слот определяет смысловую "дорожку" — что актуально в это время суток.
+// Если сегодня астро-событие, оно имеет приоритет в любом слоте.
+const SLOT_TEMPLATES = {
+  // 06:00 UTC — утро: приветствие + гороскоп
+  morning: [
+    (ctx) => ({
+      text: `🌅 Доброе утро${ctx.sign ? `, ${ctx.sign}` : ""}!\n\nЗвёзды уже выстроили путь на сегодня. Открой свой персональный гороскоп и узнай, чего ждать ✨`,
+      btn: "🌟 Гороскоп на сегодня",
+    }),
+    (ctx) => ({
+      text: `☀️ Новый день — новые возможности${ctx.sign ? ` для ${ctx.sign}` : ""}.\n\nПрежде чем начать — загляни в карты. Что подсказывает Таро? 🃏`,
+      btn: "🃏 Карта дня",
+    }),
+    (ctx) => ({
+      text: `🌄 ${ctx.sign || "Звёзды"}, сегодня особый день.\n\nПолучи утреннее послание от Оракула — он уже видит твой путь 🔮`,
+      btn: "🔮 Утреннее послание",
+    }),
+  ],
+  // 10:00 UTC — день: факт, мотивация, карта
+  midday: [
+    () => ({
+      text: `🃏 Карта дня открыта и ждёт тебя.\n\nВселенная посылает послание через символы — загляни и получи +1 💫`,
+      btn: "🃏 Открыть карту дня",
+    }),
+    (ctx) => ({
+      text: `💡 Астро-совет дня${ctx.sign ? ` для ${ctx.sign}` : ""}:\n\nЗвёзды раскрывают скрытые возможности этого дня. Открой МистикУм — там уже всё готово ✨`,
+      btn: "✨ Совет дня",
+    }),
+    () => ({
+      text: `🎴 Есть вопрос — карты готовы ответить.\n\nРасклад занимает меньше минуты. Спроси о том, что волнует прямо сейчас 🔮`,
+      btn: "🎴 Разложить карты",
+    }),
+  ],
+  // 13:00 UTC — послеполудень: лунный цикл, руны, совет
+  afternoon: [
+    (ctx) => ({
+      text: `🌙 Луна влияет на каждое твоё решение.\n\nУзнай лунный совет на сегодня${ctx.sign ? ` специально для ${ctx.sign}` : ""} — это меняет взгляд на ситуацию 🔮`,
+      btn: "🌙 Лунный совет",
+    }),
+    (ctx) => ({
+      text: `ᚠ Руны${ctx.sign ? ` для ${ctx.sign}` : ""} готовы говорить.\n\nКакие силы действуют в твоей жизни прямо сейчас? Один бросок — и картина прояснится 🌿`,
+      btn: "ᚠ Бросить руны",
+    }),
+    () => ({
+      text: `🌿 Середина дня — хороший момент спросить у Оракула.\n\nО чём ты думаешь прямо сейчас? Задай вопрос — получи честный ответ звёзд 🔮`,
+      btn: "🔮 Спросить Оракула",
+    }),
+  ],
+  // 17:00 UTC — вечер: дневник, рефлексия
+  evening: [
+    () => ({
+      text: `📔 Вечер — лучшее время для записи в дневник.\n\nЧто случилось сегодня? Запиши — Оракул прочитает образы и раскроет скрытые послания 🌙`,
+      btn: "📔 Записать в дневник",
+    }),
+    () => ({
+      text: `😴 Сны приходят из глубин подсознания.\n\nЗапиши сны этой ночи пока они свежи — Оракул расшифрует каждый символ 🌌`,
+      btn: "📔 Записать сны",
+    }),
+    (ctx) => ({
+      text: `🌆 Вечерний ритуал${ctx.sign ? ` для ${ctx.sign}` : ""}:\n\nПодведи итог дня с помощью Таро. Что карты скажут о прошедшем? 🎴`,
+      btn: "🎴 Вечерний расклад",
+    }),
+  ],
+  // 20:00 UTC — ночь: стрик, оракул, не прерывай
+  night: [
+    (ctx) => (ctx.streak >= 2 ? {
+      text: `🔥 Серия ${ctx.streak} дн. — не прерывай сегодня!\n\nОракул ждёт твоего визита. Загляни до полуночи — сохрани стрик и получи бонусные 💫`,
+      btn: "⚡ Сохранить серию",
+    } : {
+      text: `🌙 Ночь — особое время для Оракула.\n\nТишина помогает услышать звёзды. Задай вопрос, который не выходит из головы 🔮`,
+      btn: "🔮 Спросить Оракула",
+    }),
+    () => ({
+      text: `🌌 Перед сном — хорошее время для карты.\n\nТаро покажет, что несёт завтрашний день. Один расклад — и можно спать спокойно 🃏`,
+      btn: "🃏 Карта на завтра",
+    }),
+    (ctx) => ({
+      text: `✨ ${ctx.sign || "Звёзды"}, как прошёл твой день?\n\nЗапиши ощущения в дневник или спроси Оракула о завтра — он отвечает даже ночью 🔮`,
+      btn: "🔮 Открыть МистикУм",
+    }),
+  ],
+};
+
+// Поле дедупликации для каждого слота (по одному на слот в день)
+const SLOT_DEDUP = {
+  morning:   "notif_slot_morning",
+  midday:    "notif_slot_midday",
+  afternoon: "notif_slot_afternoon",
+  evening:   "notif_slot_evening",
+  night:     "notif_slot_night",
+};
+
+// Выбрать контент для слота
+function chooseSlotContent(slot, ctx, dayIndex, todayEvent) {
+  // Приоритет: астро-событие всегда идёт в утреннем и послеполуденном слотах
+  if (todayEvent && (slot === "morning" || slot === "afternoon")) {
+    const ev = todayEvent;
     const isMoon = ev.type === "full_moon" || ev.type === "new_moon";
-    const type = isMoon ? "moon_event" : "astro_event";
     return {
-      type,
-      context: { ...ctx, event_label: ev.label, event_ritual: ev.ritual, phase: isMoon ? ev.label.split(" ")[0] : undefined },
+      text: `${isMoon ? "🌕" : "✨"} ${ev.label} — сегодня!\n\n${ev.ritual}. Открой МистикУм для персонального прогноза 🌙`,
+      btn: isMoon ? "🌙 Лунный прогноз" : "📅 Персональный прогноз",
     };
   }
 
-  // 2. Если есть активная серия >= 2 дней — напомнить не терять (через день чередуем)
-  if (ctx.streak >= 2 && dayIndex % 2 === 0) {
-    return { type: "streak_warning", context: ctx };
-  }
-
-  // 3. Ротация по функциям
-  const templateFn = CRON_ROTATION[dayIndex % CRON_ROTATION.length];
-  const { text, btn } = templateFn(ctx);
-  return { type: "__raw", text, btn };
+  const templates = SLOT_TEMPLATES[slot] || SLOT_TEMPLATES.morning;
+  const fn = templates[dayIndex % templates.length];
+  return fn(ctx);
 }
 
 // ── Общая функция отправки в Telegram ───────────────────────
@@ -170,7 +235,7 @@ const sendTelegramMessage = async (token, chatId, text, replyMarkup) => {
   return r.json();
 };
 
-// ── GET: CRON — массовая рассылка всем пользователям ────────
+// ── GET: CRON — массовая рассылка слота ─────────────────────
 async function handleCron(req, res) {
   // Проверка авторизации крона
   const cronSecret = process.env.CRON_SECRET;
@@ -184,6 +249,19 @@ async function handleCron(req, res) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return res.status(503).json({ error: "TELEGRAM_BOT_TOKEN не задан" });
 
+  // Определяем слот из query-параметра (или фоллбэк по текущему часу UTC)
+  const rawSlot = (req.query?.slot || "").toLowerCase();
+  const VALID_SLOTS = ["morning", "midday", "afternoon", "evening", "night"];
+  const slot = VALID_SLOTS.includes(rawSlot) ? rawSlot : (() => {
+    const h = new Date().getUTCHours();
+    if (h < 8)  return "morning";
+    if (h < 12) return "midday";
+    if (h < 15) return "afternoon";
+    if (h < 19) return "evening";
+    return "night";
+  })();
+
+  const dedupField = SLOT_DEDUP[slot];
   const webappUrl = process.env.WEBAPP_URL || null;
   const db = getSupabase();
 
@@ -195,7 +273,7 @@ async function handleCron(req, res) {
 
     if (error) throw error;
     if (!users || users.length === 0) {
-      return res.status(200).json({ ok: true, sent: 0, message: "No users" });
+      return res.status(200).json({ ok: true, sent: 0, slot, message: "No users" });
     }
 
     const today = new Date().toDateString();
@@ -211,27 +289,15 @@ async function handleCron(req, res) {
       const userData = row.data || {};
 
       if (!userData.registered) { skipped++; continue; }
-      if (userData.notif_cron_sent === today) { skipped++; continue; }
+
+      // Дедупликация: уже отправляли этот слот сегодня?
+      if (userData[dedupField] === today) { skipped++; continue; }
 
       const sign = userData.sun_sign || null;
       const streak = userData.streak_days || 0;
-      const ctx = { sign, streak, todayEvent };
+      const ctx = { sign, streak };
 
-      // Умный выбор типа уведомления для каждого пользователя
-      const chosen = chooseNotificationType(ctx, dayIndex);
-
-      let notifText, btnLabel;
-      if (chosen.type === "__raw") {
-        // Прямой шаблон из ротации
-        notifText = chosen.text;
-        btnLabel = chosen.btn;
-      } else {
-        // Шаблон из TEMPLATES
-        const templateFn = TEMPLATES[chosen.type] || TEMPLATES.custom;
-        const result = templateFn(chosen.context || ctx);
-        notifText = result.text;
-        btnLabel = result.btn;
-      }
+      const { text: notifText, btn: btnLabel } = chooseSlotContent(slot, ctx, dayIndex, todayEvent);
 
       const replyMarkup = webappUrl
         ? { inline_keyboard: [[{ text: btnLabel, web_app: { url: webappUrl } }]] }
@@ -241,14 +307,15 @@ async function handleCron(req, res) {
         await sendTelegramMessage(token, row.telegram_id, notifText, replyMarkup);
         sent++;
 
-        const merged = { ...userData, notif_cron_sent: today };
+        // Помечаем слот как отправленный
+        const merged = { ...userData, [dedupField]: today };
         await db.from("mystic_users").upsert(
           { telegram_id: row.telegram_id, data: merged, updated_at: new Date().toISOString() },
           { onConflict: "telegram_id" }
         );
       } catch (e) {
         if (e.message.match(/403|400|blocked|chat not found/i)) { blocked++; continue; }
-        console.warn(`[Cron] Error sending to ${row.telegram_id}:`, e.message);
+        console.warn(`[Cron:${slot}] Error sending to ${row.telegram_id}:`, e.message);
         errors++;
       }
 
@@ -256,9 +323,9 @@ async function handleCron(req, res) {
       if (sent % 25 === 0) await new Promise(r => setTimeout(r, 1100));
     }
 
-    return res.status(200).json({ ok: true, total: users.length, sent, skipped, blocked, errors });
+    return res.status(200).json({ ok: true, slot, total: users.length, sent, skipped, blocked, errors });
   } catch (e) {
-    console.error("[Cron notify]", e.message);
+    console.error(`[Cron notify:${slot}]`, e.message);
     return res.status(500).json({ error: e.message });
   }
 }

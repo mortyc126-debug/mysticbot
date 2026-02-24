@@ -3,6 +3,7 @@ import { Btn, Input } from "../components/UI";
 import { ZODIAC_SIGNS } from "../data/tarot";
 import { getZodiacSign } from "../hooks/useAppState";
 import ClaudeAPI from "../api/claude";
+import { syncUser } from "../api/backend";
 
 const STEPS = [
   { id: "welcome",      title: null },
@@ -120,8 +121,32 @@ export default function Onboarding({ state, showToast }) {
         birthPlace: form.birth_place || null,
         sunSign: getZodiacSign(form.birth_date),
       }).then(result => {
-        if (result) state.updateUser(result);
-      }).catch(() => {});
+        if (result) {
+          state.updateUser(result);
+          // Синхронизируем знак Луны, асцендент и время рождения в Supabase
+          // (updateUser обновляет только localStorage, поэтому синхронизируем отдельно)
+          syncUser({
+            moon_sign: result.moon_sign,
+            ascendant: result.ascendant,
+            birth_time: form.birth_time || null,
+            birth_place: form.birth_place || null,
+          }).catch(() => {});
+        } else if (form.birth_time || form.birth_place) {
+          // Даже если натальный расчёт не удался — сохраняем данные рождения
+          syncUser({
+            birth_time: form.birth_time || null,
+            birth_place: form.birth_place || null,
+          }).catch(() => {});
+        }
+      }).catch(() => {
+        // При ошибке всё равно сохраняем данные рождения
+        if (form.birth_time || form.birth_place) {
+          syncUser({
+            birth_time: form.birth_time || null,
+            birth_place: form.birth_place || null,
+          }).catch(() => {});
+        }
+      });
     }
   };
 

@@ -334,23 +334,6 @@ export function Astrology({ state, showToast }) {
             </Btn>
           </div>
 
-          {/* Реферальная проверка */}
-          {referralInfo.hasFriends && (
-            <div style={{
-              marginBottom: 10, background: "rgba(139,92,246,0.07)", border: "1px solid rgba(139,92,246,0.25)",
-              borderRadius: 11, padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between",
-            }}>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)" }}>👥 Реферальная проверка</div>
-                <div style={{ fontSize: 10, color: "var(--text2)" }}>{referralInfo.used}/{referralInfo.max} сегодня · бесплатно</div>
-              </div>
-              <button onClick={handleReferralCompat} style={{
-                fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 8,
-                background: "rgba(139,92,246,0.2)", color: "var(--accent)",
-                border: "1px solid rgba(139,92,246,0.4)", cursor: "pointer",
-              }}>Проверить</button>
-            </div>
-          )}
 
           {/* Результат совместимости */}
           {compatLoading && (
@@ -432,21 +415,6 @@ export function Astrology({ state, showToast }) {
             )}
           </div>
 
-          {/* Пригласи друга */}
-          <button onClick={() => setShowReferral(true)} style={{
-            marginTop: 10, width: "100%", background: "linear-gradient(135deg,rgba(34,197,94,0.1),rgba(139,92,246,0.07))",
-            border: "1px solid rgba(34,197,94,0.3)", borderRadius: 12, padding: "10px 12px",
-            cursor: "pointer", textAlign: "left",
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 800, color: "#4ade80", marginBottom: 2 }}>🎁 Пригласи друга</div>
-                <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 1 }}>1-й = <span style={{ color: "#fbbf24", fontWeight: 700 }}>+3 дня Премиум</span> · 2-й и далее = +1 день</div>
-                <div style={{ fontSize: 10, color: "var(--text2)" }}>+ 5 бесплатных проверок совместимости/день</div>
-              </div>
-              <span style={{ fontSize: 18 }}>→</span>
-            </div>
-          </button>
         </Card>
 
         {/* Планеты сегодня */}
