@@ -88,6 +88,14 @@ export default async function handler(req, res) {
     results.commands = { ok: false, error: e.message };
   }
 
+  // 4. Проверка текущего состояния вебхука
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+    results.webhookInfo = await r.json();
+  } catch (e) {
+    results.webhookInfo = { ok: false, error: e.message };
+  }
+
   const allOk = Object.values(results).every(r => r?.ok);
   return res.status(200).json({
     ok:         allOk,
