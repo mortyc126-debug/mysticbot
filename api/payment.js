@@ -116,7 +116,7 @@ const removeLuck = async (db, telegramId, luck) => {
 
 // Валидация метаданных: не доверяем webhook-данным, сверяем с серверными прайсами.
 // Если metadata.package_id / metadata.tier не совпадают ни с одним прайсом — отклоняем.
-const resolvePaymentValues = (meta, paidAmount) => {
+const resolvePaymentValues = (meta) => {
   if (meta.type === "subscription") {
     const plan = SUBSCRIPTION_PRICES[meta.tier];
     if (!plan) return null; // неизвестный тариф
@@ -133,9 +133,9 @@ const resolvePaymentValues = (meta, paidAmount) => {
 // Идемпотентная активация платежа: проверяет processed_payments чтобы
 // не начислять повторно. Вызывается и из вебхука, и из GET ?status=
 // (фоллбэк на случай если вебхук ЮKassa не дошёл или упал).
-const ensurePaymentApplied = async (db, paymentId, telegramId, meta, paidAmount) => {
+const ensurePaymentApplied = async (db, paymentId, telegramId, meta) => {
   // Валидируем метаданные по серверным прайсам (а не доверяем webhook)
-  const resolved = resolvePaymentValues(meta, paidAmount);
+  const resolved = resolvePaymentValues(meta);
   if (!resolved) {
     console.warn(`[payment] отклонены неизвестные metadata: type=${meta.type} tier=${meta.tier} pkg=${meta.package_id} (${paymentId})`);
     return;
@@ -194,8 +194,7 @@ export default async function handler(req, res) {
       if (telegramId) {
         try {
           const db = getSupabase();
-          const paidAmount = parseFloat(payment.amount?.value || "0");
-          await ensurePaymentApplied(db, payment.id, telegramId, meta, paidAmount);
+          await ensurePaymentApplied(db, payment.id, telegramId, meta);
         } catch (e) {
           console.error("[payment-status] ensurePaymentApplied:", e.message);
         }
@@ -270,8 +269,7 @@ export default async function handler(req, res) {
       if (!telegramId) return res.status(200).json({ ok: false, reason: "no_telegram_id" });
 
       const db = getSupabase();
-      const paidAmount = parseFloat(payment.amount?.value || "0");
-      await ensurePaymentApplied(db, paymentId, telegramId, meta, paidAmount);
+      await ensurePaymentApplied(db, paymentId, telegramId, meta);
 
       return res.status(200).json({ ok: true });
 
