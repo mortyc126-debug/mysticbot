@@ -6,7 +6,7 @@
 //   - память оракула (user.data.oracle_memory)
 //
 // Переменная Vercel: ENCRYPTION_KEY — 64 hex-символа (32 байта)
-//   Генерация ключа: node -e "require('crypto').randomBytes(32).toString('hex')|0"
+//   Генерация ключа: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 //   Или: openssl rand -hex 32
 //
 // Формат зашифрованного поля: "ENC:iv_hex:tag_hex:ciphertext_hex"

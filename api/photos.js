@@ -7,6 +7,16 @@ import { setCorsHeaders, setSecurityHeaders, rateLimit } from "./_security.js";
 const BUCKET    = "mystic-photos";
 const MAX_BYTES = 5 * 1024 * 1024; // 5 МБ
 
+// Разрешённые MIME-типы для загрузки фото (только изображения)
+const ALLOWED_MIME_TYPES = new Map([
+  ["image/jpeg", "jpg"],
+  ["image/jpg",  "jpg"],
+  ["image/png",  "png"],
+  ["image/webp", "webp"],
+  ["image/heic", "heic"],
+  ["image/heif", "heif"],
+]);
+
 export default async function handler(req, res) {
   setCorsHeaders(res, "GET, POST, OPTIONS");
   setSecurityHeaders(res);
@@ -59,14 +69,20 @@ export default async function handler(req, res) {
         return res.status(413).json({ error: "Фото слишком большое (максимум 5 МБ)" });
       }
 
+      // Валидация mimeType: только разрешённые типы изображений
+      const safeMime = mimeType && typeof mimeType === "string" ? mimeType.toLowerCase().trim() : "image/jpeg";
+      if (!ALLOWED_MIME_TYPES.has(safeMime)) {
+        return res.status(400).json({ error: "Неподдерживаемый тип файла. Разрешены: JPEG, PNG, WebP, HEIC" });
+      }
+
       // Путь в Storage: {telegram_id}/{type}/{timestamp}.{ext}
-      const ext = (mimeType || "image/jpeg").split("/")[1]?.replace("jpeg", "jpg") || "jpg";
+      const ext = ALLOWED_MIME_TYPES.get(safeMime);
       const filePath = `${id}/${type}/${Date.now()}.${ext}`;
       const buffer = Buffer.from(base64, "base64");
 
       const { error: uploadError } = await db.storage
         .from(BUCKET)
-        .upload(filePath, buffer, { contentType: mimeType || "image/jpeg", upsert: false });
+        .upload(filePath, buffer, { contentType: safeMime, upsert: false });
 
       if (uploadError) {
         console.error("[/api/photos] Storage upload:", uploadError.message);

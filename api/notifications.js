@@ -27,7 +27,7 @@
 // ============================================================
 
 import { getSupabase } from "./_supabase.js";
-import { setCorsHeaders, setSecurityHeaders, rateLimit, checkBodySize } from "./_security.js";
+import { setCorsHeaders, setSecurityHeaders, rateLimit, checkBodySize, safeStringEqual } from "./_security.js";
 import { resolveUserId } from "./_auth.js";
 
 // ── Шаблоны для POST (одиночные) ────────────────────────────
@@ -95,17 +95,25 @@ const ASTRO_EVENTS_2026 = [
   { date: "04-16", type: "full_moon", label: "🌕 Полнолуние в Весах",       ritual: "Гармонизируй отношения" },
   { date: "05-01", type: "new_moon",  label: "🌑 Новолуние в Тельце",       ritual: "Намерения на достаток и красоту" },
   { date: "05-16", type: "full_moon", label: "🌕 Полнолуние в Скорпионе",   ritual: "Трансформация и глубокие перемены" },
+  { date: "05-31", type: "new_moon",  label: "🌑 Новолуние в Близнецах",    ritual: "Загадай желания на общение и идеи" },
   { date: "06-14", type: "full_moon", label: "🌕 Полнолуние в Стрельце",    ritual: "Расширяй горизонты" },
   { date: "06-21", type: "solstice",  label: "☀️ Летнее солнцестояние",      ritual: "Разожги костёр намерений" },
+  { date: "06-29", type: "new_moon",  label: "🌑 Новолуние в Раке",         ritual: "Укрепи домашний очаг и близкие связи" },
   { date: "07-14", type: "full_moon", label: "🌕 Полнолуние в Козероге",     ritual: "Подведи итоги полугодия" },
+  { date: "07-29", type: "new_moon",  label: "🌑 Новолуние во Льве",        ritual: "Прояви себя, выйди на свет" },
   { date: "08-12", type: "full_moon", label: "🌕 Полнолуние в Водолее",     ritual: "Освободись от ограничений" },
+  { date: "08-27", type: "new_moon",  label: "🌑 Новолуние в Деве",         ritual: "Наведи порядок и поставь практичные цели" },
   { date: "09-07", type: "eclipse",   label: "🌑✨ Полное лунное затмение", ritual: "Переломный момент — прислушайся к знакам" },
   { date: "09-22", type: "equinox",   label: "🍂 Осеннее равноденствие",     ritual: "Благодарность и завершение циклов" },
   { date: "09-22", type: "eclipse",   label: "☀️✨ Частичное солнечное затмение", ritual: "Мощный портал перемен" },
+  { date: "09-25", type: "new_moon",  label: "🌑 Новолуние в Весах",        ritual: "Гармония, партнёрство и новые договорённости" },
   { date: "10-10", type: "full_moon", label: "🌕 Полнолуние в Овне",        ritual: "Действуй! Энергия на пике" },
+  { date: "10-24", type: "new_moon",  label: "🌑 Новолуние в Скорпионе",    ritual: "Отпусти старое, впусти трансформацию" },
   { date: "11-09", type: "full_moon", label: "🌕 Полнолуние в Тельце",      ritual: "Укрепи то, что ценно" },
+  { date: "11-23", type: "new_moon",  label: "🌑 Новолуние в Стрельце",     ritual: "Мечтай масштабно, ставь большие цели" },
   { date: "12-08", type: "full_moon", label: "🌕 Полнолуние в Близнецах",   ritual: "Подведи итоги года" },
   { date: "12-21", type: "solstice",  label: "❄️ Зимнее солнцестояние",      ritual: "Самая длинная ночь — медитируй" },
+  { date: "12-22", type: "new_moon",  label: "🌑 Новолуние в Козероге",     ritual: "Ставь намерения на новый год" },
 ];
 
 // Диапазоны местного часа, в которые допустима рассылка слота.
@@ -248,6 +256,7 @@ const sendTelegramMessage = async (token, chatId, text, replyMarkup) => {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000), // 15 сек таймаут — защита от зависания в cron
   });
   if (!r.ok) {
     const err = await r.text();
@@ -261,8 +270,9 @@ async function handleCron(req, res) {
   // Проверка авторизации крона
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
-    const authHeader = req.headers.authorization;
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    const authHeader = req.headers.authorization || "";
+    // Сравниваем в постоянное время (защита от timing attack)
+    if (!safeStringEqual(authHeader, `Bearer ${cronSecret}`)) {
       return res.status(401).json({ error: "Unauthorized" });
     }
   }
@@ -286,71 +296,83 @@ async function handleCron(req, res) {
   const webappUrl = process.env.WEBAPP_URL || null;
   const db = getSupabase();
 
+  // Проверяем астро-событие на сегодня (MM-DD формат) — вычисляем один раз для всего крона
+  const today = new Date().toDateString();
+  const dayIndex = Math.floor(Date.now() / 86400000);
+  const nowDate = new Date();
+  const mmdd = `${String(nowDate.getMonth() + 1).padStart(2, "0")}-${String(nowDate.getDate()).padStart(2, "0")}`;
+  const todayEvent = ASTRO_EVENTS_2026.find(e => e.date === mmdd) || null;
+
+  let sent = 0, skipped = 0, blocked = 0, errors = 0, totalFetched = 0;
+
+  // Пагинация: обрабатываем пользователей батчами по 500, чтобы не загружать
+  // всю базу в память одним запросом (защита от OOM при большой аудитории).
+  const BATCH_SIZE = 500;
+  let offset = 0;
+
   try {
-    const { data: users, error } = await db
-      .from("mystic_users")
-      .select("telegram_id, data")
-      .not("data", "is", null);
+    while (true) {
+      const { data: users, error } = await db
+        .from("mystic_users")
+        .select("telegram_id, data")
+        .not("data", "is", null)
+        .range(offset, offset + BATCH_SIZE - 1);
 
-    if (error) throw error;
-    if (!users || users.length === 0) {
-      return res.status(200).json({ ok: true, sent: 0, slot, message: "No users" });
-    }
+      if (error) throw error;
+      if (!users || users.length === 0) break;
 
-    const today = new Date().toDateString();
-    const dayIndex = Math.floor(Date.now() / 86400000);
-    let sent = 0, skipped = 0, blocked = 0, errors = 0;
+      totalFetched += users.length;
 
-    // Проверяем астро-событие на сегодня (MM-DD формат)
-    const nowDate = new Date();
-    const mmdd = `${String(nowDate.getMonth() + 1).padStart(2, "0")}-${String(nowDate.getDate()).padStart(2, "0")}`;
-    const todayEvent = ASTRO_EVENTS_2026.find(e => e.date === mmdd) || null;
+      for (const row of users) {
+        const userData = row.data || {};
 
-    for (const row of users) {
-      const userData = row.data || {};
+        if (!userData.registered) { skipped++; continue; }
 
-      if (!userData.registered) { skipped++; continue; }
+        // Дедупликация: уже отправляли этот слот сегодня?
+        if (userData[dedupField] === today) { skipped++; continue; }
 
-      // Дедупликация: уже отправляли этот слот сегодня?
-      if (userData[dedupField] === today) { skipped++; continue; }
+        // Фильтрация по часовому поясу: отправляем только если сейчас "правильное" время для пользователя
+        const utcOffsetMinutes = userData.utc_offset ?? null;
+        if (!isSlotTimeForUser(slot, utcOffsetMinutes)) { skipped++; continue; }
 
-      // Фильтрация по часовому поясу: отправляем только если сейчас "правильное" время для пользователя
-      const utcOffsetMinutes = userData.utc_offset ?? null;
-      if (!isSlotTimeForUser(slot, utcOffsetMinutes)) { skipped++; continue; }
+        const sign    = userData.sun_sign || null;
+        const streak  = userData.streak_days || 0;
+        const rawName = (userData.name || "").trim();
+        const name    = rawName ? rawName.charAt(0).toUpperCase() + rawName.slice(1) : null;
+        const ctx = { sign, streak, name };
 
-      const sign   = userData.sun_sign || null;
-      const streak = userData.streak_days || 0;
-      const rawName = (userData.name || "").trim();
-      const name   = rawName ? rawName.charAt(0).toUpperCase() + rawName.slice(1) : null;
-      const ctx = { sign, streak, name };
+        const { text: notifText, btn: btnLabel } = chooseSlotContent(slot, ctx, dayIndex, todayEvent);
 
-      const { text: notifText, btn: btnLabel } = chooseSlotContent(slot, ctx, dayIndex, todayEvent);
+        const replyMarkup = webappUrl
+          ? { inline_keyboard: [[{ text: btnLabel, web_app: { url: webappUrl } }]] }
+          : null;
 
-      const replyMarkup = webappUrl
-        ? { inline_keyboard: [[{ text: btnLabel, web_app: { url: webappUrl } }]] }
-        : null;
+        try {
+          await sendTelegramMessage(token, row.telegram_id, notifText, replyMarkup);
+          sent++;
 
-      try {
-        await sendTelegramMessage(token, row.telegram_id, notifText, replyMarkup);
-        sent++;
+          // Помечаем слот как отправленный
+          const merged = { ...userData, [dedupField]: today };
+          await db.from("mystic_users").upsert(
+            { telegram_id: row.telegram_id, data: merged, updated_at: new Date().toISOString() },
+            { onConflict: "telegram_id" }
+          );
+        } catch (e) {
+          if (e.message.match(/403|400|blocked|chat not found/i)) { blocked++; continue; }
+          console.warn(`[Cron:${slot}] Error sending to ${row.telegram_id}:`, e.message);
+          errors++;
+        }
 
-        // Помечаем слот как отправленный
-        const merged = { ...userData, [dedupField]: today };
-        await db.from("mystic_users").upsert(
-          { telegram_id: row.telegram_id, data: merged, updated_at: new Date().toISOString() },
-          { onConflict: "telegram_id" }
-        );
-      } catch (e) {
-        if (e.message.match(/403|400|blocked|chat not found/i)) { blocked++; continue; }
-        console.warn(`[Cron:${slot}] Error sending to ${row.telegram_id}:`, e.message);
-        errors++;
+        // Telegram лимит: 30 msg/sec
+        if (sent % 25 === 0) await new Promise(r => setTimeout(r, 1100));
       }
 
-      // Telegram лимит: 30 msg/sec
-      if (sent % 25 === 0) await new Promise(r => setTimeout(r, 1100));
+      // Если получили меньше батча — это последняя страница
+      if (users.length < BATCH_SIZE) break;
+      offset += BATCH_SIZE;
     }
 
-    return res.status(200).json({ ok: true, slot, total: users.length, sent, skipped, blocked, errors });
+    return res.status(200).json({ ok: true, slot, total: totalFetched, sent, skipped, blocked, errors });
   } catch (e) {
     console.error(`[Cron notify:${slot}]`, e.message);
     return res.status(500).json({ error: e.message });
