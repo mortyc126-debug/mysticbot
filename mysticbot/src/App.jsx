@@ -11,6 +11,7 @@ import Runes from "./pages/Runes";
 import Palmistry from "./pages/Palmistry";
 import Aura from "./pages/Aura";
 import OracleChat from "./pages/OracleChat";
+import Feed from "./pages/Feed";
 import Quizzes from "./pages/Quizzes";
 import Investigation from "./pages/Investigation";
 import BottomNav from "./components/BottomNav";
@@ -28,7 +29,7 @@ import { getZodiacSign } from "./hooks/useAppState";
 // ============================================================
 
 // Страницы основной навигации (нижнее меню)
-const NAV_PAGES = { home: Home, tarot: Tarot, astrology: Astrology, diary: DiaryPage, profile: Profile };
+const NAV_PAGES = { home: Home, tarot: Tarot, astrology: Astrology, feed: Feed, diary: DiaryPage, profile: Profile };
 // Страницы второго уровня (открываются кнопками внутри приложения)
 const EXTRA_PAGES = { runes: Runes, palmistry: Palmistry, aura: Aura, oracle: OracleChat, quizzes: Quizzes, investigation: Investigation };
 const PAGES = { ...NAV_PAGES, ...EXTRA_PAGES };

@@ -1,10 +1,11 @@
 export default function BottomNav({ currentPage, setCurrentPage }) {
   const tabs = [
-    { id: "tarot", icon: "🃏", label: "Таро" },
-    { id: "astrology", icon: "🌟", label: "Астро" },
-    { id: "home", icon: "🏠", label: "Главная" },
-    { id: "diary", icon: "📔", label: "Дневник" },
-    { id: "profile", icon: "👤", label: "Я" },
+    { id: "tarot",     icon: "🃏", label: "Таро"     },
+    { id: "astrology", icon: "🌟", label: "Астро"    },
+    { id: "home",      icon: "🏠", label: "Главная"  },
+    { id: "feed",      icon: "✨", label: "Лента"    },
+    { id: "diary",     icon: "📔", label: "Дневник"  },
+    { id: "profile",   icon: "👤", label: "Я"        },
   ];
   return (
     <div style={{
@@ -21,9 +22,9 @@ export default function BottomNav({ currentPage, setCurrentPage }) {
           transition: "all 0.2s",
           background: currentPage === tab.id ? "rgba(139,92,246,0.08)" : "transparent",
         }}>
-          <span style={{ fontSize: 19, lineHeight: 1 }}>{tab.icon}</span>
+          <span style={{ fontSize: 17, lineHeight: 1 }}>{tab.icon}</span>
           <span style={{
-            fontSize: 9, fontWeight: currentPage === tab.id ? 800 : 600,
+            fontSize: 8, fontWeight: currentPage === tab.id ? 800 : 600,
             color: currentPage === tab.id ? "var(--accent)" : "var(--text2)",
           }}>{tab.label}</span>
           {currentPage === tab.id && (

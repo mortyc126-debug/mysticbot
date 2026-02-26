@@ -297,6 +297,32 @@ export const fetchOracleMemory = async () => {
   }
 };
 
+// ── Лента ─────────────────────────────────────────────────
+
+// Загрузить персональную ленту из Supabase
+export const fetchFeed = async () => {
+  try {
+    const uid  = getUserId();
+    const data = await apiFetch(`/api/feed?id=${encodeURIComponent(uid)}`);
+    return data.feed || [];
+  } catch (e) {
+    console.warn("[Backend] fetchFeed fallback:", e.message);
+    return [];
+  }
+};
+
+// Поставить реакцию на пост ленты
+export const reactFeed = async (feedId, reaction) => {
+  try {
+    const uid = getUserId();
+    await apiFetch("/api/feed", "POST", { telegram_id: uid, feed_id: feedId, reaction });
+    return true;
+  } catch (e) {
+    console.warn("[Backend] reactFeed fallback:", e.message);
+    return null;
+  }
+};
+
 const BackendAPI = {
   getUserId,
   syncUser,
@@ -318,6 +344,8 @@ const BackendAPI = {
   fetchUserStats,
   saveOracleMemory,
   fetchOracleMemory,
+  fetchFeed,
+  reactFeed,
   trackEvent,
 };
 

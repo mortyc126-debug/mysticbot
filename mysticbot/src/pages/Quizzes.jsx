@@ -3,9 +3,10 @@
 // Нативно раскрывают характер и помогают ИИ персонализировать ответы
 // ============================================================
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Card, Btn, AppHeader, SLabel } from "../components/UI";
 import TelegramSDK from "../api/telegram";
+import BackendAPI from "../api/backend";
 
 // ── Определения опросников ────────────────────────────────────────────────────
 
@@ -873,6 +874,180 @@ export const QUIZZES = [
       return `Теневая сторона: ${result.emoji} ${result.name}. Зона роста: ${result.growth}. ${result.desc.slice(0, 120)}`;
     },
   },
+
+  // ── Опросник 5: Зеркало Времени ───────────────────────────────────────────
+  // (скрытая цель: время суток, глубина контента, любимые темы)
+  {
+    id: "time_mirror",
+    emoji: "🕰️",
+    title: "Зеркало Времени",
+    desc: "Когда ты ближе всего к своей истинной природе",
+    luck: 11,
+    color: "rgba(251,191,36,0.1)",
+    border: "rgba(251,191,36,0.3)",
+    accentColor: "#f59e0b",
+    questions: [
+      {
+        q: "В какое время суток ты чувствуешь себя наиболее чутким к знакам судьбы?",
+        options: [
+          { text: "🌅 На рассвете — мир ещё молчит", tag: "morning" },
+          { text: "☀️ В полдень — в потоке жизни", tag: "afternoon" },
+          { text: "🌙 Вечером — когда суета стихает", tag: "evening" },
+          { text: "🌌 В ночи — когда всё остальное спит", tag: "night" },
+        ],
+      },
+      {
+        q: "Что привлекает тебя в мире тайного знания?",
+        options: [
+          { text: "📖 Глубокое изучение символов и смыслов", tag: "depth" },
+          { text: "✨ Знаки и подсказки, которые можно заметить прямо сейчас", tag: "quick" },
+          { text: "🕯️ Живые практики и обряды своими руками", tag: "ritual" },
+          { text: "✏️ Своё...", tag: "custom", isCustom: true },
+        ],
+      },
+      {
+        q: "Когда думаешь о будущем — что волнует тебя больше всего?",
+        options: [
+          { text: "💞 Любовь — близость и отношения", tag: "love" },
+          { text: "🌿 Покой — внутренняя гармония", tag: "peace" },
+          { text: "🌟 Предназначение — смысл пути", tag: "spiritual" },
+          { text: "💪 Сила — преодоление и движение вперёд", tag: "strength" },
+        ],
+      },
+      {
+        q: "Как чаще всего ты обращаешься к высшим силам?",
+        options: [
+          { text: "🙏 В молитве или медитации", tag: "meditation" },
+          { text: "🃏 Через карты и предсказания", tag: "divination" },
+          { text: "📔 В записях — дневник, мысли", tag: "reflection" },
+          { text: "🌿 В природе — лес, вода, небо", tag: "nature" },
+        ],
+      },
+      {
+        q: "Что ты ищешь в мистических знаниях?",
+        options: [
+          { text: "💝 Поддержку — понимание и тепло", tag: "support" },
+          { text: "🔮 Ответы — что будет и почему", tag: "prophecy" },
+          { text: "🌱 Перемены — рост и преображение", tag: "growth" },
+          { text: "🛡️ Защиту — оберег и силу", tag: "protection" },
+        ],
+      },
+    ],
+    calcResult(scores) {
+      // Определяем предпочтительное время
+      const timeMap = { morning: "утренний", afternoon: "дневной", evening: "вечерний", night: "ночной" };
+      const timeTag = ["morning","afternoon","evening","night"].find(t => scores[t]) || "evening";
+      // Определяем потребность
+      const needMap = {
+        support:    { name: "Хранительница", emoji: "💝", focus: "support" },
+        prophecy:   { name: "Провидица",     emoji: "🔮", focus: "prophecy" },
+        growth:     { name: "Странница",     emoji: "🌱", focus: "growth" },
+        protection: { name: "Воительница",   emoji: "🛡️", focus: "protection" },
+        ritual:     { name: "Жрица",         emoji: "🕯️", focus: "ritual" },
+        depth:      { name: "Мудрая",        emoji: "📖", focus: "depth" },
+      };
+      const topNeed = Object.entries(scores)
+        .filter(([k]) => needMap[k])
+        .sort((a,b) => b[1]-a[1])[0]?.[0] || "support";
+      const profile = needMap[topNeed];
+      return {
+        name: profile.name,
+        emoji: profile.emoji,
+        timePreference: timeTag,
+        focus: profile.focus,
+        desc: `Твоё время силы — ${timeMap[timeTag]}. Ты ищешь ${
+          { support:"поддержку и тепло", prophecy:"ответы и ясность", growth:"перемены и рост",
+            protection:"защиту и устойчивость", ritual:"живые практики", depth:"глубину знания" }[profile.focus]
+        }. Именно это ведёт тебя к мудрости.`,
+      };
+    },
+    buildMemory(result) {
+      return `Зеркало времени: ${result.emoji} ${result.name}. Время силы — ${result.timePreference}. Запрос — ${result.focus}. ${result.desc.slice(0, 100)}`;
+    },
+    saveToProfile(result) {
+      return { mystic_path: result.name, feed_time_pref: result.timePreference, feed_focus: result.focus };
+    },
+  },
+
+  // ── Опросник 6: Нить Судьбы ───────────────────────────────────────────────
+  // (скрытая цель: эмоциональные потребности, тон контента, ночные темы)
+  {
+    id: "fate_thread",
+    emoji: "🌸",
+    title: "Нить Судьбы",
+    desc: "Что ведёт тебя сквозь испытания",
+    luck: 11,
+    color: "rgba(236,72,153,0.1)",
+    border: "rgba(236,72,153,0.3)",
+    accentColor: "#ec4899",
+    questions: [
+      {
+        q: "Когда жизнь испытывает тебя — чего ты ищешь в первую очередь?",
+        options: [
+          { text: "🤗 Слов поддержки и тепла", tag: "support" },
+          { text: "💡 Понимания — почему это происходит", tag: "clarity" },
+          { text: "⚡ Сил, чтобы двигаться вперёд", tag: "strength" },
+          { text: "🕊️ Покоя и принятия ситуации", tag: "peace" },
+        ],
+      },
+      {
+        q: "Какой совет тебе хотелось бы получить прямо сейчас?",
+        options: [
+          { text: "💞 О любви и отношениях", tag: "love" },
+          { text: "🌟 О своём пути и предназначении", tag: "purpose" },
+          { text: "🌱 О переменах и внутреннем росте", tag: "growth" },
+          { text: "✏️ Своё...", tag: "custom", isCustom: true },
+        ],
+      },
+      {
+        q: "Что ты читаешь или смотришь перед сном, когда хочется чего-то особенного?",
+        options: [
+          { text: "📖 Что-то душевное и тёплое", tag: "warm" },
+          { text: "🔮 Что-то таинственное и глубокое", tag: "mystic" },
+          { text: "✨ Вдохновляющее — поднимает дух", tag: "inspiring" },
+          { text: "🌿 О старинных обрядах, травах, природе", tag: "folk" },
+        ],
+      },
+      {
+        q: "Если бы судьба послала тебе знак — в каком виде?",
+        options: [
+          { text: "🃏 Через карты Таро", tag: "tarot" },
+          { text: "🌙 Через сны", tag: "dream" },
+          { text: "🌟 Через астрологию", tag: "astrology" },
+          { text: "🌿 Через природные знаки", tag: "nature" },
+        ],
+      },
+      {
+        q: "Чего в жизни ты боишься больше всего?",
+        options: [
+          { text: "💔 Одиночества — потерять близких", tag: "loneliness" },
+          { text: "❓ Потерять смысл и направление", tag: "uncertainty" },
+          { text: "🧱 Застрять и не реализовать себя", tag: "stagnation" },
+          { text: "✏️ Своё...", tag: "custom", isCustom: true },
+        ],
+      },
+    ],
+    calcResult(scores) {
+      const needProfiles = {
+        support:     { name: "Ищущая тепла",   emoji: "🤗", tone: "warm",      desc: "Ты идёшь к свету через связь. Поддержка и понимание — твоя сила и твоя потребность. Именно тепло других людей восстанавливает тебя." },
+        clarity:     { name: "Ищущая ясности", emoji: "💡", tone: "deep",      desc: "Тебе важно понимать — зачем и почему. Знание превращает страх в мудрость. Ты ищешь смысл там, где другие видят хаос." },
+        strength:    { name: "Ищущая силы",    emoji: "⚡", tone: "inspiring", desc: "Твоя природа — двигаться вперёд. Ты не ждёшь, когда станет легче — ты берёшь и идёшь. Вдохновение зажигает тебя." },
+        peace:       { name: "Ищущая покоя",   emoji: "🕊️", tone: "calm",     desc: "Гармония — твой ориентир. В тишине ты слышишь себя лучше всего. Ты учишься принимать жизнь такой, какая она есть." },
+        love:        { name: "Ищущая любви",   emoji: "💞", tone: "warm",      desc: "Любовь — твой компас. Отношения и близость дают тебе смысл и наполняют силой." },
+        loneliness:  { name: "Хранительница связей", emoji: "💝", tone: "warm",desc: "Для тебя главное — быть нужной и рядом с теми, кого любишь. Твоя сила в преданности и заботе." },
+      };
+      const top = Object.entries(scores)
+        .filter(([k]) => needProfiles[k])
+        .sort((a,b) => b[1]-a[1])[0]?.[0] || "support";
+      return needProfiles[top] || needProfiles.support;
+    },
+    buildMemory(result) {
+      return `Нить судьбы: ${result.emoji} ${result.name}. Тон контента: ${result.tone}. ${result.desc.slice(0, 120)}`;
+    },
+    saveToProfile(result) {
+      return { night_theme: result.name, feed_tone: result.tone, emotional_need: result.tone };
+    },
+  },
 ];
 
 // ── Компонент ─────────────────────────────────────────────────────────────────
@@ -886,6 +1061,9 @@ export default function Quizzes({ state, showToast }) {
   const [result, setResult]               = useState(null);
   const [saved, setSaved]                 = useState(false);
   const [selectedOption, setSelectedOption] = useState(null);
+  const [customText, setCustomText]       = useState("");   // "своё" поле
+  const [waitingCustom, setWaitingCustom] = useState(false); // ждём ввод
+  const customInputRef = useRef(null);
 
   const completedQuizzes = user.completed_quizzes || [];
 
@@ -896,30 +1074,58 @@ export default function Quizzes({ state, showToast }) {
     setResult(null);
     setSaved(false);
     setSelectedOption(null);
+    setCustomText("");
+    setWaitingCustom(false);
     TelegramSDK.haptic.impact("medium");
   };
 
-  const handleSelectOption = (tag, idx) => {
-    if (selectedOption !== null) return; // prevent double-tap
-    setSelectedOption(idx);
+  const advanceQuestion = useCallback((tag, newAnswers) => {
+    if (questionIndex < activeQuiz.questions.length - 1) {
+      setAnswers(newAnswers);
+      setQuestionIndex(qi => qi + 1);
+      setSelectedOption(null);
+      setCustomText("");
+      setWaitingCustom(false);
+    } else {
+      const scores = {};
+      newAnswers.forEach(t => { scores[t] = (scores[t] || 0) + 1; });
+      const calcResult = activeQuiz.calcResult(scores);
+      setResult(calcResult);
+      setAnswers(newAnswers);
+      setSelectedOption(null);
+      setCustomText("");
+      setWaitingCustom(false);
+      TelegramSDK.haptic.notification("success");
+    }
+  }, [questionIndex, activeQuiz]);
+
+  const handleSubmitCustom = useCallback(() => {
+    const text = customText.trim();
+    if (!text) return;
+    // Сохраняем текст — будет доступен в saveToProfile/buildMemory через answers
+    const tagWithText = `custom:${text}`;
+    const newAnswers = [...answers, tagWithText];
+    advanceQuestion(tagWithText, newAnswers);
+  }, [customText, answers, advanceQuestion]);
+
+  const handleSelectOption = (opt, idx) => {
+    if (selectedOption !== null && !waitingCustom) return; // prevent double-tap
     TelegramSDK.haptic.impact("light");
 
+    // Если вариант "Своё..." — показываем поле ввода
+    if (opt.isCustom) {
+      setSelectedOption(idx);
+      setWaitingCustom(true);
+      setTimeout(() => customInputRef.current?.focus(), 100);
+      return;
+    }
+
+    setSelectedOption(idx);
+    setWaitingCustom(false);
+
     setTimeout(() => {
-      const newAnswers = [...answers, tag];
-      if (questionIndex < activeQuiz.questions.length - 1) {
-        setAnswers(newAnswers);
-        setQuestionIndex(qi => qi + 1);
-        setSelectedOption(null);
-      } else {
-        // Последний вопрос — считаем результат
-        const scores = {};
-        newAnswers.forEach(t => { scores[t] = (scores[t] || 0) + 1; });
-        const calcResult = activeQuiz.calcResult(scores);
-        setResult(calcResult);
-        setAnswers(newAnswers);
-        setSelectedOption(null);
-        TelegramSDK.haptic.notification("success");
-      }
+      const newAnswers = [...answers, opt.tag];
+      advanceQuestion(opt.tag, newAnswers);
     }, 350);
   };
 
@@ -932,6 +1138,24 @@ export default function Quizzes({ state, showToast }) {
       updateOracleMemory({ [`quiz_${activeQuiz.id}`]: memoryText });
       addLuck(activeQuiz.luck, `Опросник «${activeQuiz.title}»`);
       state.completeQuiz?.(activeQuiz.id);
+
+      // Сохранить доп. данные профиля для персонализации (если quiz их предоставляет)
+      if (activeQuiz.saveToProfile) {
+        const profileData = activeQuiz.saveToProfile(result, answers);
+        // Сохраняем пользовательские ответы (свои варианты) отдельно
+        const customAnswers = answers
+          .filter(a => a.startsWith("custom:"))
+          .map(a => a.replace("custom:", "").trim());
+        if (customAnswers.length) {
+          profileData.custom_quiz_answers = {
+            ...(state.user?.custom_quiz_answers || {}),
+            [activeQuiz.id]: customAnswers.join("; "),
+          };
+        }
+        state.updateUser?.(profileData);
+        BackendAPI.syncUser(profileData).catch(() => {});
+      }
+
       showToast(`${activeQuiz.emoji} +${activeQuiz.luck} 💫 Сохранено в память Оракула!`);
     } else {
       showToast("✅ Результат уже сохранён");
@@ -941,17 +1165,20 @@ export default function Quizzes({ state, showToast }) {
   }, [result, activeQuiz, answers, saved, completedQuizzes, addLuck, updateOracleMemory, showToast, state]);
 
   const handleBack = () => {
+    const resetState = () => {
+      setAnswers([]);
+      setQuestionIndex(0);
+      setSelectedOption(null);
+      setCustomText("");
+      setWaitingCustom(false);
+    };
     if (result) {
       setResult(null);
-      setAnswers([]);
-      setQuestionIndex(0);
-      setSelectedOption(null);
       setActiveQuiz(null);
+      resetState();
     } else if (activeQuiz) {
       setActiveQuiz(null);
-      setAnswers([]);
-      setQuestionIndex(0);
-      setSelectedOption(null);
+      resetState();
     } else {
       goBack();
     }
@@ -1066,20 +1293,54 @@ export default function Quizzes({ state, showToast }) {
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {current.options.map((opt, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => handleSelectOption(opt.tag, idx)}
-                  style={{
-                    padding: "14px 16px", borderRadius: 14, cursor: "pointer",
-                    border: `1.5px solid ${selectedOption === idx ? activeQuiz.accentColor : "var(--border)"}`,
-                    background: selectedOption === idx ? activeQuiz.color : "var(--bg3)",
-                    transition: "all 0.2s ease",
-                    fontSize: 14, lineHeight: 1.4, color: "var(--text)",
-                    opacity: selectedOption !== null && selectedOption !== idx ? 0.5 : 1,
-                    transform: selectedOption === idx ? "scale(1.01)" : "scale(1)",
-                  }}
-                >
-                  {opt.text}
+                <div key={idx}>
+                  <div
+                    onClick={() => handleSelectOption(opt, idx)}
+                    style={{
+                      padding: "14px 16px", borderRadius: 14, cursor: "pointer",
+                      border: `1.5px solid ${selectedOption === idx ? activeQuiz.accentColor : "var(--border)"}`,
+                      background: selectedOption === idx ? activeQuiz.color : "var(--bg3)",
+                      transition: "all 0.2s ease",
+                      fontSize: 14, lineHeight: 1.4, color: "var(--text)",
+                      opacity: selectedOption !== null && selectedOption !== idx && !waitingCustom ? 0.5 : 1,
+                      transform: selectedOption === idx ? "scale(1.01)" : "scale(1)",
+                    }}
+                  >
+                    {opt.text}
+                  </div>
+
+                  {/* Поле ввода "Своё" — только когда выбран этот вариант */}
+                  {opt.isCustom && waitingCustom && selectedOption === idx && (
+                    <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+                      <input
+                        ref={customInputRef}
+                        type="text"
+                        value={customText}
+                        onChange={e => setCustomText(e.target.value)}
+                        onKeyDown={e => e.key === "Enter" && handleSubmitCustom()}
+                        placeholder="Напиши своё..."
+                        maxLength={80}
+                        style={{
+                          flex: 1, padding: "10px 14px", borderRadius: 10,
+                          border: `1.5px solid ${activeQuiz.accentColor}`,
+                          background: "var(--bg3)", color: "var(--text)",
+                          fontSize: 14, outline: "none",
+                        }}
+                      />
+                      <button
+                        onClick={handleSubmitCustom}
+                        disabled={!customText.trim()}
+                        style={{
+                          padding: "10px 16px", borderRadius: 10,
+                          background: customText.trim() ? activeQuiz.accentColor : "var(--border)",
+                          border: "none", color: "#fff", cursor: customText.trim() ? "pointer" : "default",
+                          fontSize: 14, fontWeight: 700, transition: "all 0.2s",
+                        }}
+                      >
+                        →
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

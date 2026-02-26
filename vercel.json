@@ -11,6 +11,9 @@
     { "path": "/api/notifications?slot=midday",    "schedule": "0 10 * * *" },
     { "path": "/api/notifications?slot=afternoon", "schedule": "0 13 * * *" },
     { "path": "/api/notifications?slot=evening",   "schedule": "0 17 * * *" },
-    { "path": "/api/notifications?slot=night",     "schedule": "0 20 * * *" }
+    { "path": "/api/notifications?slot=night",     "schedule": "0 20 * * *" },
+    { "path": "/api/cron-feed?slot=morning",       "schedule": "0 6 * * *" },
+    { "path": "/api/cron-feed?slot=afternoon",     "schedule": "0 10 * * *" },
+    { "path": "/api/cron-feed?slot=evening",       "schedule": "0 16 * * *" }
   ]
 }
