@@ -237,7 +237,7 @@ export function TarotCardVisual({ card, position, size = "md", revealed = true, 
           /* Изображение карты из public/tarot/{id}.png */
           <>
             <img
-              src={`/tarot/${card.id}.png`}
+              src={`/tarot/${card.id}.jpg`}
               alt={card.name}
               onError={() => setImgError(true)}
               style={{
