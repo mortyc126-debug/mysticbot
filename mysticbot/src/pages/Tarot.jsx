@@ -1,4 +1,31 @@
 import { useState } from "react";
+
+// Миниатюра карты для детальной секции расклада
+function CardThumb({ card }) {
+  const [err, setErr] = useState(false);
+  const isReversed = card?.reversed;
+  return (
+    <div style={{
+      width: 44, height: 64, borderRadius: 8, flexShrink: 0, overflow: "hidden",
+      background: err ? (isReversed ? "rgba(239,68,68,0.1)" : "rgba(139,92,246,0.1)") : "transparent",
+      border: isReversed ? "1px solid rgba(239,68,68,0.3)" : "1px solid rgba(139,92,246,0.25)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      transform: isReversed ? "rotate(180deg)" : "none",
+      boxShadow: isReversed ? "0 0 8px rgba(239,68,68,0.15)" : "0 2px 10px rgba(139,92,246,0.2)",
+    }}>
+      {!err ? (
+        <img
+          src={`/tarot/${card.id}.png`}
+          alt={card.name}
+          onError={() => setErr(true)}
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+        />
+      ) : (
+        <span style={{ fontSize: 22 }}>{card.emoji}</span>
+      )}
+    </div>
+  );
+}
 import { Card, Btn, SLabel, AppHeader, Badge, TarotCardVisual, Modal } from "../components/UI";
 import { ALL_CARDS, SPREADS } from "../data/tarot";
 import { interpretTarot } from "../hooks/useAppState";
@@ -296,16 +323,8 @@ export default function Tarot({ state, showToast }) {
                 borderRadius: 13, padding: "12px 13px",
                 display: "flex", gap: 12, alignItems: "flex-start",
               }}>
-                {/* Иконка карты — перевёрнута на 180° если reversed */}
-                <div style={{
-                  fontSize: 26, width: 44, height: 44, flexShrink: 0,
-                  background: card.reversed ? "rgba(239,68,68,0.1)" : "rgba(139,92,246,0.1)",
-                  borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
-                  transform: card.reversed ? "rotate(180deg)" : "none",
-                  border: card.reversed ? "1px solid rgba(239,68,68,0.3)" : "none",
-                }}>
-                  {card.emoji}
-                </div>
+                {/* Миниатюра карты */}
+                <CardThumb card={card} />
                 <div style={{ flex: 1 }}>
                   {/* Позиция расклада */}
                   <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>
