@@ -185,7 +185,7 @@ export default async function handler(req, res) {
 
   const db = getSupabase();
 
-  // ── GET: вернуть ленту ───────────────────────────────────
+  // ── GET: вернуть ленту (с ленивой генерацией при пустом фиде) ───────────
   if (req.method === "GET") {
     const since = new Date();
     since.setDate(since.getDate() - 7);
@@ -198,6 +198,47 @@ export default async function handler(req, res) {
       .order("created_at", { ascending: false })
       .limit(30);
     if (error) { console.error("[feed GET]", error.message); return res.status(500).json({ error: "Ошибка загрузки ленты" }); }
+
+    // ── Ленивая генерация: если лента пуста — создаём один пост прямо сейчас ──
+    let lazyPost = null;
+    if ((!posts || posts.length === 0) && process.env.ANTHROPIC_API_KEY) {
+      // Rate-limit: не чаще одного раза в час на пользователя
+      if (rateLimit(`feed_lazy_${id}`, 1, 3600_000)) {
+        try {
+          const utcH  = new Date().getUTCHours();
+          const slot  = utcH < 9 ? "morning" : utcH < 15 ? "afternoon" : "evening";
+          const today = new Date().toISOString().slice(0, 10);
+
+          // Загружаем профиль пользователя
+          const { data: userRow } = await db
+            .from("mystic_users").select("data").eq("telegram_id", id).maybeSingle();
+          const userData = userRow?.data || {};
+
+          const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+          const { likedTags, dislikedTags } = await getUserReactionTags(db, id);
+          const category    = pickCategory(slot, likedTags, dislikedTags);
+          const userProfile = buildUserProfile(userData, likedTags, dislikedTags);
+          const result      = await generateContent(client, slot, userProfile, category);
+
+          if (result.title && result.content) {
+            const { data: saved } = await db.from("mystic_feed")
+              .upsert(
+                { telegram_id: id, slot, feed_date: today, title: result.title,
+                  content: result.content, category, tags: [category],
+                  created_at: new Date().toISOString() },
+                { onConflict: "telegram_id,slot,feed_date" }
+              )
+              .select("id, slot, feed_date, title, content, category, tags, created_at")
+              .single();
+            if (saved) lazyPost = { ...saved, my_reaction: null };
+          }
+        } catch (e) {
+          console.warn("[feed lazy-gen]", e.message); // не ломаем — вернём пустую ленту
+        }
+      }
+    }
+
+    if (lazyPost) return res.status(200).json({ feed: [lazyPost] });
 
     const ids = (posts || []).map(p => p.id);
     let reactionsMap = {};
