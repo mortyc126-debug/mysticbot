@@ -255,12 +255,20 @@ export default async function handler(req, res) {
   if (req.method === "POST") {
     if (!rateLimit(`feed_react_${id}`, 60, 60_000)) return res.status(429).json({ error: "Слишком много запросов" });
     const { feed_id, reaction } = req.body || {};
-    if (!feed_id || !["like", "dislike"].includes(reaction)) return res.status(400).json({ error: "feed_id и reaction обязательны" });
+    if (!feed_id || !["like", "dislike", "remove"].includes(reaction)) return res.status(400).json({ error: "feed_id и reaction обязательны" });
     const { data: post } = await db.from("mystic_feed").select("id").eq("id", feed_id).eq("telegram_id", id).single();
     if (!post) return res.status(404).json({ error: "Пост не найден" });
-    const { error } = await db.from("mystic_feed_reactions")
-      .upsert({ telegram_id: id, feed_id, reaction, created_at: new Date().toISOString() }, { onConflict: "telegram_id,feed_id" });
-    if (error) { console.error("[feed POST reaction]", error.message); return res.status(500).json({ error: "Ошибка сохранения реакции" }); }
+
+    if (reaction === "remove") {
+      // Удаляем реакцию (toggle off)
+      const { error } = await db.from("mystic_feed_reactions")
+        .delete().eq("telegram_id", id).eq("feed_id", feed_id);
+      if (error) { console.error("[feed DELETE reaction]", error.message); return res.status(500).json({ error: "Ошибка удаления реакции" }); }
+    } else {
+      const { error } = await db.from("mystic_feed_reactions")
+        .upsert({ telegram_id: id, feed_id, reaction, created_at: new Date().toISOString() }, { onConflict: "telegram_id,feed_id" });
+      if (error) { console.error("[feed POST reaction]", error.message); return res.status(500).json({ error: "Ошибка сохранения реакции" }); }
+    }
     return res.status(200).json({ ok: true });
   }
 
