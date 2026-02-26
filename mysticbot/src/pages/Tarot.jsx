@@ -15,7 +15,7 @@ function CardThumb({ card }) {
     }}>
       {!err ? (
         <img
-          src={`/tarot/${card.id}.png`}
+          src={`/tarot/${card.id}.jpg`}
           alt={card.name}
           onError={() => setErr(true)}
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
