@@ -18,7 +18,7 @@ function CardThumb({ card }) {
           src={`/tarot/${card.id}.jpg`}
           alt={card.name}
           onError={() => setErr(true)}
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
         />
       ) : (
         <span style={{ fontSize: 22 }}>{card.emoji}</span>

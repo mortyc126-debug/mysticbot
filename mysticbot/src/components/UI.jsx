@@ -242,7 +242,7 @@ export function TarotCardVisual({ card, position, size = "md", revealed = true, 
               onError={() => setImgError(true)}
               style={{
                 width: "100%", height: "100%",
-                objectFit: "cover", display: "block",
+                objectFit: "contain", display: "block",
                 borderRadius: 9,
               }}
             />
