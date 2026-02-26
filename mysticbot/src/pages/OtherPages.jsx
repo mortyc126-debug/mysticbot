@@ -1427,12 +1427,12 @@ export function Profile({ state, showToast }) {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 12, fontWeight: 700 }}>Раскрой себя</div>
               <div style={{ fontSize: 10, color: "var(--text2)" }}>
-                {(user.completed_quizzes || []).length}/5 пройдено · Оракул узнаёт тебя глубже
+                {(user.completed_quizzes || []).length}/7 пройдено · Оракул узнаёт тебя глубже
               </div>
               <div style={{ background: "var(--border)", borderRadius: 10, height: 3, marginTop: 3, overflow: "hidden" }}>
                 <div style={{ height: "100%", borderRadius: 10,
                   background: "linear-gradient(90deg,#8b5cf6,#ec4899)",
-                  width: `${Math.min(((user.completed_quizzes || []).length / 5) * 100, 100)}%` }} />
+                  width: `${Math.min(((user.completed_quizzes || []).length / 7) * 100, 100)}%` }} />
               </div>
             </div>
             <div style={{ fontSize: 14, color: "var(--text2)" }}>→</div>
