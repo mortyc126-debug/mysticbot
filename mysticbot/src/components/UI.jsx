@@ -216,7 +216,6 @@ export function TarotCardVisual({ card, position, size = "md", revealed = true, 
       <div style={{
         width: s.width, height: s.height, borderRadius: 10,
         background: revealed ? gradients[gradIdx] : "linear-gradient(160deg,#1a1a27,#0a0a0f)",
-        // Перевёрнутые карты — красноватая граница, обычные — фиолетовая
         border: `1px solid ${
           !revealed ? "rgba(139,92,246,0.2)" :
           isReversed ? "rgba(239,68,68,0.5)" : "rgba(139,92,246,0.45)"
@@ -225,17 +224,26 @@ export function TarotCardVisual({ card, position, size = "md", revealed = true, 
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         margin: "0 auto", transition: "transform 0.3s",
         animation: revealed ? (isReversed ? "cardFlipReversed 0.4s ease" : "cardFlip 0.4s ease") : "none",
-        // Визуальный поворот карты на 180 градусов (финальное состояние для перевёрнутых)
         transform: isReversed ? "rotate(180deg)" : "none",
-        position: "relative",
+        position: "relative", overflow: "hidden",
       }}>
         {revealed && card ? (
           <>
-            <div style={{ fontSize: s.fontSize }}>{card.emoji}</div>
+            <img
+              src={`/tarot/${card.id}.jpg`}
+              alt={card.name}
+              style={{
+                position: "absolute", top: 0, left: 0,
+                width: "100%", height: "100%", objectFit: "cover",
+              }}
+              onError={e => { e.currentTarget.style.display = "none"; }}
+            />
             <div style={{
-              fontSize: s.nameFontSize, color: "rgba(255,255,255,0.5)",
-              marginTop: 4, textAlign: "center", padding: "0 4px", lineHeight: 1.3,
-              // Текст названия крутим обратно чтобы он был читаем
+              position: "absolute", bottom: 0, left: 0, right: 0,
+              fontSize: s.nameFontSize, color: "rgba(255,255,255,0.9)",
+              textAlign: "center", padding: "8px 4px 4px",
+              background: "linear-gradient(transparent, rgba(0,0,0,0.75))",
+              lineHeight: 1.3,
               transform: isReversed ? "rotate(180deg)" : "none",
             }}>{card.name}</div>
           </>

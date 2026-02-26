@@ -298,13 +298,17 @@ export default function Tarot({ state, showToast }) {
               }}>
                 {/* Иконка карты — перевёрнута на 180° если reversed */}
                 <div style={{
-                  fontSize: 26, width: 44, height: 44, flexShrink: 0,
-                  background: card.reversed ? "rgba(239,68,68,0.1)" : "rgba(139,92,246,0.1)",
-                  borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 44, height: 66, flexShrink: 0,
+                  borderRadius: 8, overflow: "hidden",
                   transform: card.reversed ? "rotate(180deg)" : "none",
-                  border: card.reversed ? "1px solid rgba(239,68,68,0.3)" : "none",
+                  border: card.reversed ? "1px solid rgba(239,68,68,0.5)" : "1px solid rgba(139,92,246,0.3)",
                 }}>
-                  {card.emoji}
+                  <img
+                    src={`/tarot/${card.id}.jpg`}
+                    alt={card.name}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    onError={e => { e.currentTarget.style.display = "none"; }}
+                  />
                 </div>
                 <div style={{ flex: 1 }}>
                   {/* Позиция расклада */}
