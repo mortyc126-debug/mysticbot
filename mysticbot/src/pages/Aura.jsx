@@ -463,12 +463,13 @@ export default function Aura({ state, showToast }) {
         TelegramSDK.haptic.notification("success");
 
         // Сохраняем фото в Storage (фоново)
+        // Используем сжатый base64 от Claude (≤1MB) — оригинал может превышать 5MB лимит backend
         if (user?.telegram_id) {
           PhotosAPI.uploadPhoto({
             telegramId: user.telegram_id,
             type: "aura",
-            base64,
-            mimeType: file.type,
+            base64: ai?.compressedBase64 || base64,
+            mimeType: ai?.compressedBase64 ? (ai.compressedMimeType || "image/jpeg") : file.type,
             reading: ai?.description?.slice(0, 2000),
           }).catch(err => console.warn("[Aura] photo save failed:", err.message));
         }
@@ -845,7 +846,7 @@ export default function Aura({ state, showToast }) {
               </Card>
             )}
 
-            {!aiAnalysis?.deepDescription && (canAccess("premium") || auraPurchased > 0) && (
+            {!aiAnalysis?.deepDescription && (canAccess("premium") || auraDeepPurchased > 0 || auraPurchased > 0) && (
               <Btn
                 variant="gold"
                 onClick={handleDeepAnalysis}
