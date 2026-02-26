@@ -11,6 +11,19 @@ import { getMasteryLevel, MASTERY_LEVELS, DAILY_PLANETS_STUB, MYSTICAL_CALENDAR_
 import { DREAM_SYMBOLS } from "../data/dreamSymbols";
 import { openSubscriptionPayment, openLuckPayment, LUCK_PACKAGES } from "../api/payments";
 
+function CollectionCardImg({ id, emoji, name }) {
+  const [err, setErr] = useState(false);
+  if (err) return <div style={{ fontSize: 26, marginBottom: 4 }}>{emoji}</div>;
+  return (
+    <img
+      src={`/tarot/${id}.jpg`}
+      alt={name}
+      onError={() => setErr(true)}
+      style={{ width: "100%", aspectRatio: "2/3", objectFit: "contain", display: "block", borderRadius: "8px 8px 0 0" }}
+    />
+  );
+}
+
 export function Astrology({ state, showToast }) {
   const { user, canAccess,
           canCheckCompat, getCompatInfo, useCompatCheck,
@@ -2008,15 +2021,17 @@ export function Profile({ state, showToast }) {
                   borderRadius: 10, overflow: "hidden",
                   background: collected ? gradients[card.id % gradients.length] : "var(--bg3)",
                   border: `1px solid ${collected ? "rgba(139,92,246,0.45)" : "var(--border)"}`,
-                  padding: "10px 4px 8px",
+                  padding: collected ? "0 0 6px" : "10px 4px 8px",
                   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                   opacity: collected ? 1 : 0.4,
                   transition: "all 0.3s",
                   minHeight: 80,
                 }}>
-                  <div style={{ fontSize: 26, marginBottom: 4 }}>
-                    {collected ? card.emoji : "🔒"}
-                  </div>
+                  {collected ? (
+                    <CollectionCardImg id={card.id} emoji={card.emoji} name={card.name} />
+                  ) : (
+                    <div style={{ fontSize: 26, marginBottom: 4 }}>🔒</div>
+                  )}
                   <div style={{
                     fontSize: 9, fontWeight: 700, textAlign: "center",
                     color: collected ? "rgba(255,255,255,0.85)" : "var(--text2)",
