@@ -19,6 +19,18 @@ const CATEGORY_ICON = {
   reflection:  "🔮",
   dream_magic: "🌙",
 };
+const CATEGORY_LABEL = {
+  ritual:      "Ритуал",
+  intention:   "Намерение",
+  rune_wisdom: "Руны",
+  astrology:   "Астрология",
+  myth:        "Миф",
+  tarot_deep:  "Таро",
+  love_magic:  "Любовь",
+  slavic:      "Славянское",
+  reflection:  "Рефлексия",
+  dream_magic: "Сны",
+};
 
 // Форматирование даты
 const formatDate = (dateStr) => {
@@ -42,7 +54,7 @@ const groupByDate = (posts) => {
 };
 
 // ── Карточка поста ────────────────────────────────────────
-function FeedCard({ post, onReact }) {
+function FeedCard({ post }) {
   const [expanded,  setExpanded]  = useState(false);
   const [reaction,  setReaction]  = useState(post.my_reaction || null);
   const [animating, setAnimating] = useState(null);
@@ -51,13 +63,15 @@ function FeedCard({ post, onReact }) {
   const isLong = post.content.length > PREVIEW_CHARS;
 
   const handleReact = async (r) => {
-    const newReaction = reaction === r ? null : r; // toggle
+    const prev        = reaction;
+    const newReaction = reaction === r ? null : r; // toggle: повторный клик снимает реакцию
     setAnimating(r);
     setTimeout(() => setAnimating(null), 400);
     setReaction(newReaction);
     try {
-      await BackendAPI.reactFeed(post.id, r);
+      await BackendAPI.reactFeed(post.id, newReaction); // null = удалить реакцию
     } catch (e) {
+      setReaction(prev); // откат UI если запрос упал
       console.warn("[feed react]", e.message);
     }
   };
@@ -88,7 +102,7 @@ function FeedCard({ post, onReact }) {
           background: "rgba(139,92,246,0.12)", borderRadius: 20,
           padding: "2px 8px", border: "1px solid rgba(139,92,246,0.2)",
         }}>
-          {CATEGORY_ICON[post.category] || "✨"} {post.category?.replace(/_/g, " ")}
+          {CATEGORY_ICON[post.category] || "✨"} {CATEGORY_LABEL[post.category] || post.category}
         </span>
       </div>
 
@@ -183,7 +197,8 @@ function EmptyFeed() {
 }
 
 // ── Основная страница ────────────────────────────────────
-export default function Feed({ state }) {
+export default function Feed({ state, showToast }) {
+  const { user } = state;
   const [feed,    setFeed]    = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
@@ -209,9 +224,9 @@ export default function Feed({ state }) {
   return (
     <div style={{ padding: "0 16px 16px" }}>
       <AppHeader
-        title="Моя лента"
-        subtitle="Создана лично для тебя"
-        emoji="✨"
+        title="✨ Моя лента"
+        luckPoints={user?.luck_points ?? 0}
+        streak={user?.streak_days ?? 0}
       />
 
       {loading && (
@@ -265,7 +280,6 @@ export default function Feed({ state }) {
               <FeedCard
                 key={post.id}
                 post={post}
-                onReact={(id, r) => BackendAPI.reactFeed(id, r)}
               />
             ))
           }

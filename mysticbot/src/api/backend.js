@@ -311,11 +311,11 @@ export const fetchFeed = async () => {
   }
 };
 
-// Поставить реакцию на пост ленты
+// Поставить реакцию на пост ленты (reaction: "like" | "dislike" | null = удалить)
 export const reactFeed = async (feedId, reaction) => {
   try {
     const uid = getUserId();
-    await apiFetch("/api/feed", "POST", { telegram_id: uid, feed_id: feedId, reaction });
+    await apiFetch("/api/feed", "POST", { telegram_id: uid, feed_id: feedId, reaction: reaction ?? "remove" });
     return true;
   } catch (e) {
     console.warn("[Backend] reactFeed fallback:", e.message);
