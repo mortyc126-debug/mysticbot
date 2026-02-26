@@ -122,12 +122,13 @@ export default function Palmistry({ state, showToast }) {
       }
 
       // Сохраняем фото в Supabase Storage (фоново, не блокируем UI)
-      if (user?.telegram_id && mainPhoto.base64) {
+      // Используем сжатый base64 от Claude (≤1MB) — оригинал может превышать 5MB лимит backend
+      if (user?.telegram_id && (aiResult?.compressedBase64 || mainPhoto.base64)) {
         PhotosAPI.uploadPhoto({
           telegramId: user.telegram_id,
           type: "palmistry",
-          base64: mainPhoto.base64,
-          mimeType: mainPhoto.mime,
+          base64: aiResult?.compressedBase64 || mainPhoto.base64,
+          mimeType: aiResult?.compressedBase64 ? (aiResult.compressedMimeType || "image/jpeg") : mainPhoto.mime,
           reading: palmResult?.summary?.slice(0, 2000),
         }).catch(e => console.warn("[Palmistry] photo save failed:", e.message));
       }
