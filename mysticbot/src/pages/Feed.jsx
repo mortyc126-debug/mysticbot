@@ -19,6 +19,18 @@ const CATEGORY_ICON = {
   reflection:  "🔮",
   dream_magic: "🌙",
 };
+const CATEGORY_LABEL = {
+  ritual:      "Ритуал",
+  intention:   "Намерение",
+  rune_wisdom: "Руны",
+  astrology:   "Астрология",
+  myth:        "Миф",
+  tarot_deep:  "Таро",
+  love_magic:  "Любовь",
+  slavic:      "Славянское",
+  reflection:  "Рефлексия",
+  dream_magic: "Сны",
+};
 
 // Форматирование даты
 const formatDate = (dateStr) => {
@@ -90,7 +102,7 @@ function FeedCard({ post }) {
           background: "rgba(139,92,246,0.12)", borderRadius: 20,
           padding: "2px 8px", border: "1px solid rgba(139,92,246,0.2)",
         }}>
-          {CATEGORY_ICON[post.category] || "✨"} {post.category?.replace(/_/g, " ")}
+          {CATEGORY_ICON[post.category] || "✨"} {CATEGORY_LABEL[post.category] || post.category}
         </span>
       </div>
 
