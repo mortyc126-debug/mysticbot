@@ -90,7 +90,11 @@ export default async function handler(req, res) {
       }
 
       const grokData = await grokRes.json();
-      const text = grokData.choices?.[0]?.message?.content || "";
+      // Reasoning-модели (grok-*-reasoning) возвращают "думалку" в <think>…</think>
+      // внутри content — стрипим её, оставляем только финальный ответ.
+      // Также берём reasoning_content как fallback-индикатор (сам текст нам не нужен).
+      const raw = grokData.choices?.[0]?.message?.content || "";
+      const text = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
       if (!text) {
         console.error("[Grok API ERROR] пустой ответ:", JSON.stringify(grokData).slice(0, 300));
       }
