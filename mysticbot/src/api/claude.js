@@ -254,7 +254,9 @@ ${life_focus_priority ? `Приоритеты: ${life_focus_priority}` : ""}
       maxTokens: 1050,
       model: SONNET,
     }, signal);
-    return text ? { description: text } : null;
+    // compressedBase64 возвращается чтобы Aura.jsx загружал именно его в Supabase
+    // (оригинал может превышать 5MB лимит backend, сжатое — всегда в пределах нормы)
+    return text ? { description: text, compressedBase64, compressedMimeType: "image/jpeg" } : null;
   } catch (e) {
     console.warn("[Claude] aura photo fallback:", e.message);
     return null;
