@@ -351,12 +351,11 @@ async function handleCron(req, res) {
           await sendTelegramMessage(token, row.telegram_id, notifText, replyMarkup);
           sent++;
 
-          // Помечаем слот как отправленный
+          // Помечаем слот как отправленный (updated_at НЕ трогаем — иначе admin-stats покажет ложный "онлайн")
           const merged = { ...userData, [dedupField]: today };
-          await db.from("mystic_users").upsert(
-            { telegram_id: row.telegram_id, data: merged, updated_at: new Date().toISOString() },
-            { onConflict: "telegram_id" }
-          );
+          await db.from("mystic_users")
+            .update({ data: merged })
+            .eq("telegram_id", row.telegram_id);
         } catch (e) {
           if (e.message.match(/403|400|blocked|chat not found/i)) { blocked++; continue; }
           console.warn(`[Cron:${slot}] Error sending to ${row.telegram_id}:`, e.message);
@@ -451,10 +450,10 @@ async function handlePost(req, res) {
         .maybeSingle();
 
       const merged = { ...(existing?.data || {}), [dedupField]: today };
-      await db.from("mystic_users").upsert(
-        { telegram_id: id, data: merged, updated_at: new Date().toISOString() },
-        { onConflict: "telegram_id" }
-      );
+      // updated_at НЕ трогаем — иначе admin-stats покажет ложный "онлайн"
+      await db.from("mystic_users")
+        .update({ data: merged })
+        .eq("telegram_id", id);
     } catch (e) {
       console.warn("[Notifications] failed to save dedup date:", e.message);
     }
