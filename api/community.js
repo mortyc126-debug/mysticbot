@@ -449,6 +449,43 @@ async function handlePostChatMessage(req, res) {
       .select("id, sender_id, sender_alias, text, created_at")
       .single();
     if (error) throw error;
+
+    // ── Telegram-уведомление получателю (1 раз за 30 минут на чат) ──
+    try {
+      const token = process.env.TELEGRAM_BOT_TOKEN;
+      const webappUrl = process.env.WEBAPP_URL;
+      if (token) {
+        // Проверяем: было ли сообщение от этого sender в этот чат за последние 30 мин (кроме только что созданного)
+        const thirtyMinAgo = new Date(Date.now() - 30 * 60_000).toISOString();
+        const { count: recentCount } = await db
+          .from("mystic_chat_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("chat_key", key)
+          .eq("sender_id", String(id))
+          .gt("created_at", thirtyMinAgo)
+          .neq("id", message.id);
+
+        if ((recentCount || 0) === 0) {
+          // Первое сообщение за 30 мин — отправляем уведомление
+          const notifText = `💬 Тебе написали в <b>Нитях Судьбы</b>\n\n<i>${alias}</i> отправил(а) сообщение. Загляни — ответь анонимно ✨`;
+          const body = {
+            chat_id: String(to_id),
+            text: notifText,
+            parse_mode: "HTML",
+            ...(webappUrl ? { reply_markup: { inline_keyboard: [[{ text: "💬 Открыть сообщение", web_app: { url: webappUrl } }]] } } : {}),
+          };
+          await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(5_000),
+          }).catch(() => {}); // Молча игнорируем ошибки (бот заблокирован и т.д.)
+        }
+      }
+    } catch (notifErr) {
+      console.warn("[chat notify]", notifErr.message);
+    }
+
     return res.status(201).json({ message });
   } catch (e) {
     console.error("[community/chat POST]", e.message);
@@ -456,9 +493,50 @@ async function handlePostChatMessage(req, res) {
   }
 }
 
+// ── Кол-во непрочитанных сообщений ───────────────────────────
+async function handleGetUnreadCount(req, res) {
+  const { ok, id } = resolveUserId(req, req.query?.viewer_id || null);
+  if (!ok) return res.status(401).json({ error: "Не авторизован" });
+
+  const after = req.query.after || new Date(0).toISOString();
+  const db  = getSupabase();
+  const now = new Date().toISOString();
+
+  try {
+    // Получаем всех партнёров по нитям (исходящие + взаимные входящие)
+    const [{ data: outgoing }, { data: incoming }] = await Promise.all([
+      db.from("mystic_threads").select("to_id").eq("from_id", id).gt("expires_at", now),
+      db.from("mystic_threads").select("from_id").eq("to_id", id).eq("is_mutual", true).gt("expires_at", now),
+    ]);
+
+    const partnerIds = [
+      ...(outgoing || []).map(t => String(t.to_id)),
+      ...(incoming || []).map(t => String(t.from_id)),
+    ];
+
+    if (partnerIds.length === 0) return res.status(200).json({ count: 0 });
+
+    // Строим все chat_key с этими партнёрами
+    const chatKeys = [...new Set(partnerIds.map(pid => chatKey(id, pid)))];
+
+    const { count } = await db
+      .from("mystic_chat_messages")
+      .select("id", { count: "exact", head: true })
+      .in("chat_key", chatKeys)
+      .neq("sender_id", String(id))
+      .gt("created_at", after);
+
+    return res.status(200).json({ count: count || 0 });
+  } catch (e) {
+    console.error("[community/unread GET]", e.message);
+    return res.status(200).json({ count: 0 }); // Не ломаем приложение из-за ошибки счётчика
+  }
+}
+
 async function handleGetThreads(req, res) {
-  // Route chat sub-action
-  if (req.query.chat === "1") return handleGetChatMessages(req, res);
+  // Route sub-actions
+  if (req.query.chat === "1")   return handleGetChatMessages(req, res);
+  if (req.query.unread === "1") return handleGetUnreadCount(req, res);
 
   const { ok, id } = resolveUserId(req, req.query?.viewer_id || null);
   if (!ok) return res.status(401).json({ error: "Не авторизован" });

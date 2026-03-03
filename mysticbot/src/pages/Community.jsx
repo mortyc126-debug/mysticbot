@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { AppHeader, Modal, Btn, SLabel } from "../components/UI";
 import { getMysticalAlias, getActiveTier, TIER_ICONS, TIER_LABELS } from "../hooks/alias";
 import { fetchPosts, createPost, reactToPost, fetchComments, createComment } from "../api/posts";
-import { fetchMyThreads, discoverSouls, createThread, deleteThread, fetchChatMessages, sendChatMessage } from "../api/threads";
+import { fetchMyThreads, discoverSouls, createThread, deleteThread, fetchChatMessages, sendChatMessage, fetchUnreadCount } from "../api/threads";
 import { fetchRitual, joinRitual }                          from "../api/ritual";
 import { getUserId } from "../api/backend";
 import {
@@ -614,7 +614,7 @@ function getTodayRitual() {
 
 // ── Основной компонент ───────────────────────────────────────
 export default function Community({ state, showToast }) {
-  const { user, canAccess } = state;
+  const { user, canAccess, setUnreadChats } = state;
 
   const activeTier = getActiveTier(user);
   const myUserId   = getUserId();
@@ -664,6 +664,10 @@ export default function Community({ state, showToast }) {
   const [chatInput,     setChatInput]     = useState("");
   const [chatSending,   setChatSending]   = useState(false);
   const chatPollRef = useRef(null);
+  // ── Непрочитанные сообщения ──────────────────────────────
+  const [unreadCount,   setUnreadCount]   = useState(0);
+  const unreadPollRef   = useRef(null);
+  const threadsLastOpenRef = useRef(localStorage.getItem("threads_last_open") || new Date(0).toISOString());
 
   // ── Ритуал дня ────────────────────────────────────────────
   const [ritual,        setRitual]        = useState(null);   // { total_count, participated }
@@ -692,6 +696,18 @@ export default function Community({ state, showToast }) {
   useEffect(() => {
     loadPosts("all", 0, null, false);
     fetchRitual().then(r => { if (r) setRitual(r); });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Поллинг непрочитанных сообщений (каждые 60 сек) ──────
+  useEffect(() => {
+    const checkUnread = async () => {
+      const count = await fetchUnreadCount(threadsLastOpenRef.current);
+      setUnreadCount(count);
+      if (setUnreadChats) setUnreadChats(count);
+    };
+    checkUnread();
+    unreadPollRef.current = setInterval(checkUnread, 60_000);
+    return () => clearInterval(unreadPollRef.current);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTypeChange = (type) => {
@@ -818,6 +834,13 @@ export default function Community({ state, showToast }) {
 
   // ── Нити Судьбы: открыть панель ──────────────────────────
   const openThreads = async () => {
+    // Сбрасываем счётчик непрочитанных при открытии
+    const now = new Date().toISOString();
+    threadsLastOpenRef.current = now;
+    localStorage.setItem("threads_last_open", now);
+    setUnreadCount(0);
+    if (setUnreadChats) setUnreadChats(0);
+
     setShowThreads(true);
     setThreadsLoading(true);
     const [threadsData, soulsData] = await Promise.all([
@@ -1007,6 +1030,15 @@ export default function Community({ state, showToast }) {
               padding: "3px 8px",
             }}>
               {myThreads.outgoing.length}
+            </div>
+          )}
+          {unreadCount > 0 && (
+            <div style={{
+              fontSize: 10, fontWeight: 800, color: "white",
+              background: "#ef4444", borderRadius: 10,
+              padding: "2px 7px", animation: "pulse 1.5s ease-in-out infinite",
+            }}>
+              {unreadCount > 99 ? "99+" : unreadCount} new
             </div>
           )}
           <div style={{ fontSize: 16, color: "var(--text2)" }}>›</div>
