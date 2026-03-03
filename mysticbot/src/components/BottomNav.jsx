@@ -1,7 +1,7 @@
 export default function BottomNav({ currentPage, setCurrentPage }) {
   const tabs = [
     { id: "tarot",     icon: "🃏", label: "Таро"     },
-    { id: "community", icon: "🌐", label: "Коллектив" },
+    { id: "community", icon: "🌐", label: "Сообщество" },
     { id: "home",      icon: "🏠", label: "Главная"  },
     { id: "feed",      icon: "✨", label: "Лента"    },
     { id: "diary",     icon: "📔", label: "Дневник"  },

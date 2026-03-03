@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { AppHeader, Modal, Btn, SLabel } from "../components/UI";
 import { getMysticalAlias, getActiveTier, TIER_ICONS, TIER_LABELS } from "../hooks/alias";
-import { fetchPosts, createPost, reactToPost }              from "../api/posts";
+import { fetchPosts, createPost, reactToPost, fetchComments, createComment } from "../api/posts";
 import { fetchMyThreads, discoverSouls, createThread, deleteThread } from "../api/threads";
 import { fetchRitual, joinRitual }                          from "../api/ritual";
 import { getUserId } from "../api/backend";
@@ -104,10 +104,43 @@ function DestinyIndexBadge({ post }) {
 }
 
 // ── Карточка одного поста ────────────────────────────────────
-function PostCard({ post, onReact, isOwn }) {
+function PostCard({ post, onReact, isOwn, isAdmin, onAdminDelete, onAdminDeleteComment, onCommentAdded }) {
   const meta    = POST_TYPE_META[post.type] || POST_TYPE_META.reflection;
   const myR     = post.my_reaction;
   const canVerify = post.type === "prophecy";
+
+  const [showComments,   setShowComments]   = useState(false);
+  const [comments,       setComments]       = useState(null);
+  const [commentText,    setCommentText]    = useState("");
+  const [commentLoading, setCommentLoading] = useState(false);
+  const [localCount,     setLocalCount]     = useState(post.comments_count || 0);
+
+  const handleToggleComments = async () => {
+    if (!showComments && comments === null) {
+      const data = await fetchComments(post.id);
+      setComments(data?.comments || []);
+    }
+    setShowComments(prev => !prev);
+  };
+
+  const handleAddComment = async () => {
+    const trimmed = commentText.trim();
+    if (!trimmed || commentLoading) return;
+    setCommentLoading(true);
+    const res = await createComment(post.id, trimmed);
+    setCommentLoading(false);
+    if (res.error) return;
+    setComments(prev => [...(prev || []), res.comment]);
+    setLocalCount(res.new_count || localCount + 1);
+    setCommentText("");
+    if (onCommentAdded) onCommentAdded(post.id, res.new_count);
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    await onAdminDeleteComment(commentId, post.id);
+    setComments(prev => (prev || []).filter(c => c.id !== commentId));
+    setLocalCount(prev => Math.max(0, prev - 1));
+  };
 
   return (
     <div style={{
@@ -200,6 +233,123 @@ function PostCard({ post, onReact, isOwn }) {
           </div>
         )}
       </div>
+
+      {/* Нижняя строка: комментарии + удаление (админ) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+        <button
+          onClick={handleToggleComments}
+          style={{
+            display: "flex", alignItems: "center", gap: 5,
+            padding: "4px 10px", borderRadius: 20,
+            background: showComments ? "rgba(139,92,246,0.12)" : "var(--bg3)",
+            border: `1px solid ${showComments ? "rgba(139,92,246,0.35)" : "var(--border)"}`,
+            color: showComments ? "var(--accent)" : "var(--text2)",
+            fontSize: 11, fontWeight: showComments ? 700 : 500, cursor: "pointer",
+            transition: "all 0.2s",
+          }}
+        >
+          <span>💬</span>
+          <span>{localCount > 0 ? localCount : ""} Комментарии</span>
+        </button>
+
+        {isAdmin && (
+          <button
+            onClick={() => onAdminDelete(post.id)}
+            title="Удалить пост (администратор)"
+            style={{
+              marginLeft: "auto", padding: "4px 8px", borderRadius: 8,
+              background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
+              color: "#f87171", fontSize: 10, cursor: "pointer",
+            }}
+          >
+            🗑 Удалить
+          </button>
+        )}
+      </div>
+
+      {/* Секция комментариев (раскрывается) */}
+      {showComments && (
+        <div style={{ marginTop: 10 }}>
+          {/* Добавить комментарий */}
+          {!isOwn && (
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <input
+                value={commentText}
+                onChange={e => setCommentText(e.target.value.slice(0, 300))}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAddComment(); } }}
+                placeholder="Написать комментарий…"
+                disabled={commentLoading}
+                style={{
+                  flex: 1, padding: "7px 10px", borderRadius: 10,
+                  background: "var(--bg3)", border: "1px solid var(--border)",
+                  color: "var(--text)", fontSize: 12, outline: "none",
+                  fontFamily: "inherit",
+                }}
+              />
+              <button
+                onClick={handleAddComment}
+                disabled={!commentText.trim() || commentLoading}
+                style={{
+                  flexShrink: 0, padding: "7px 12px", borderRadius: 10,
+                  background: "var(--accent)", color: "white",
+                  border: "none", fontSize: 11, fontWeight: 700,
+                  cursor: (!commentText.trim() || commentLoading) ? "default" : "pointer",
+                  opacity: (!commentText.trim() || commentLoading) ? 0.5 : 1,
+                }}
+              >
+                {commentLoading ? "…" : "→"}
+              </button>
+            </div>
+          )}
+
+          {/* Список комментариев */}
+          {comments === null ? (
+            <div style={{ textAlign: "center", fontSize: 11, color: "var(--text2)", padding: "8px 0" }}>
+              Загружаем…
+            </div>
+          ) : comments.length === 0 ? (
+            <div style={{ textAlign: "center", fontSize: 11, color: "var(--text2)", padding: "8px 0", fontStyle: "italic" }}>
+              Пока нет комментариев — будь первым
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {comments.map(c => (
+                <div key={c.id} style={{
+                  background: "var(--bg3)", borderRadius: 10, padding: "8px 10px",
+                  position: "relative",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text)", marginBottom: 3 }}>
+                      {c.alias}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ fontSize: 9, color: "var(--text2)", whiteSpace: "nowrap" }}>
+                        {timeAgo(c.created_at)}
+                      </div>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDeleteComment(c.id)}
+                          title="Удалить комментарий"
+                          style={{
+                            padding: "1px 5px", borderRadius: 5, fontSize: 9,
+                            background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)",
+                            color: "#f87171", cursor: "pointer",
+                          }}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--text)", lineHeight: 1.5 }}>
+                    {c.text}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -462,6 +612,17 @@ export default function Community({ state, showToast }) {
   const [createText,    setCreateText]    = useState("");
   const [createLoading, setCreateLoading] = useState(false);
 
+  // ── Администратор ─────────────────────────────────────────
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const uid = getUserId();
+    if (!uid) return;
+    fetch(`/api/admin?action=check&admin_id=${uid}`)
+      .then(r => { if (r.ok) setIsAdmin(true); })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Нити Судьбы ───────────────────────────────────────────
   const [showThreads,  setShowThreads]  = useState(false);
   const [myThreads,    setMyThreads]    = useState({ outgoing: [], incoming: [] });
@@ -520,6 +681,47 @@ export default function Community({ state, showToast }) {
 
   const handleLoadMore = () => {
     if (!loading && hasMore) loadPosts(feedType, page + 1, feedCircle, true);
+  };
+
+  // ── Удаление поста (только админ) ────────────────────────
+  const handleAdminDeletePost = async (postId) => {
+    const uid = getUserId();
+    const res = await fetch("/api/admin", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ action: "delete-post", post_id: postId, admin_id: uid }),
+    });
+    if (res.ok) {
+      setPosts(prev => prev.filter(p => p.id !== postId));
+      showToast("🗑 Пост удалён");
+    } else {
+      showToast("❌ Ошибка удаления");
+    }
+  };
+
+  // ── Удаление комментария (только админ) ──────────────────
+  const handleAdminDeleteComment = async (commentId, postId) => {
+    const uid = getUserId();
+    const res = await fetch("/api/admin", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ action: "delete-comment", comment_id: commentId, admin_id: uid }),
+    });
+    if (res.ok) {
+      setPosts(prev => prev.map(p =>
+        p.id === postId ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p
+      ));
+      showToast("🗑 Комментарий удалён");
+    } else {
+      showToast("❌ Ошибка удаления");
+    }
+  };
+
+  // ── Обновить счётчик комментариев в посте ─────────────────
+  const handleCommentAdded = (postId, newCount) => {
+    setPosts(prev => prev.map(p =>
+      p.id === postId ? { ...p, comments_count: newCount } : p
+    ));
   };
 
   // ── Реакция на пост ───────────────────────────────────────
@@ -637,7 +839,7 @@ export default function Community({ state, showToast }) {
   return (
     <div style={{ paddingBottom: 90 }}>
       <AppHeader
-        title="🌐 Коллектив"
+        title="🌐 Сообщество"
         luckPoints={user.luck_points}
         streak={user.streak_days}
         userTier={activeTier}
@@ -727,7 +929,7 @@ export default function Community({ state, showToast }) {
               Нити Судьбы
             </div>
             <div style={{ fontSize: 10, color: "var(--text2)" }}>
-              Анонимные кармические связи · до 5 нитей
+              Анонимная связь с другими душами · совместимость по знаку
             </div>
           </div>
           {myThreads.outgoing.length > 0 && (
@@ -755,7 +957,7 @@ export default function Community({ state, showToast }) {
                 {pulse.icon} {pulse.mood}
               </div>
               <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>
-                Коллективная энергия прямо сейчас
+                Настроение момента · меняется по времени суток
               </div>
             </div>
             <div style={{
@@ -785,6 +987,9 @@ export default function Community({ state, showToast }) {
         }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", lineHeight: 1.6, marginBottom: 12, fontStyle: "italic" }}>
             «{question}»
+          </div>
+          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 8, lineHeight: 1.5 }}>
+            Твой ответ опубликуется анонимно в ленту сообщества — его увидят все участники
           </div>
           <Btn
             size="sm"
@@ -998,7 +1203,9 @@ export default function Community({ state, showToast }) {
           <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text2)" }}>
             <div style={{ fontSize: 40, marginBottom: 10 }}>🌑</div>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Здесь пока тихо</div>
-            <div style={{ fontSize: 12 }}>Стань первым, кто нарушит тишину</div>
+            <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+              Стань первым! Нажми <b>✦ Написать</b> чтобы поделиться пророчеством, ритуалом или размышлением — это видят все участники сообщества
+            </div>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -1008,6 +1215,10 @@ export default function Community({ state, showToast }) {
                 post={post}
                 onReact={handleReact}
                 isOwn={post.alias === myAlias}
+                isAdmin={isAdmin}
+                onAdminDelete={handleAdminDeletePost}
+                onAdminDeleteComment={handleAdminDeleteComment}
+                onCommentAdded={handleCommentAdded}
               />
             ))}
             {hasMore && (
@@ -1075,8 +1286,9 @@ export default function Community({ state, showToast }) {
           <div style={{
             fontSize: 11, color: "#a78bfa", background: "rgba(139,92,246,0.08)",
             border: "1px solid rgba(139,92,246,0.2)", borderRadius: 9, padding: "7px 10px", marginBottom: 10,
+            lineHeight: 1.5,
           }}>
-            🔮 Пророчество будет открыто для верификации сообществом через 30 дней
+            🔮 Напиши предсказание о будущем. Через 30 дней сообщество проголосует: сбылось или нет. Чем точнее твоё пророчество — тем выше твой Индекс Судьбы.
           </div>
         )}
         {createType === "confession" && (
@@ -1202,7 +1414,7 @@ export default function Community({ state, showToast }) {
                   Кармически близкие души
                 </div>
                 <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 10, lineHeight: 1.5 }}>
-                  Пользователи с высокой астрологической совместимостью
+                  Анонимные пользователи с высокой астрологической совместимостью. Нажми «Нить» — отправь кармический сигнал. Это не чат: получатель видит только % связи и необязательное послание.
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {souls.map(soul => (
