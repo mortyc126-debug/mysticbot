@@ -314,6 +314,18 @@ async function handlePatchPosts(req, res) {
 const THREAD_TTL_DAYS = 7;
 const MAX_THREADS     = 5;
 
+// ── Chat helper ───────────────────────────────────────────────
+function chatKey(idA, idB) {
+  const a = String(idA), b = String(idB);
+  return a < b ? `${a}_${b}` : `${b}_${a}`;
+}
+
+// Названия стихий для текста совместимости
+const ELEMENT_NAMES_RU = { fire: "Огонь", earth: "Земля", air: "Воздух", water: "Вода" };
+const COMPATIBLE_ELEMENTS = {
+  fire: ["air"], earth: ["water"], air: ["fire"], water: ["earth"],
+};
+
 const ELEMENTS = {
   "Овен": "fire", "Лев": "fire", "Стрелец": "fire",
   "Телец": "earth", "Дева": "earth", "Козерог": "earth",
@@ -337,17 +349,117 @@ const SIGN_BONUS = {
   "Дева-Рыбы": 15, "Рыбы-Дева": 15,
 };
 
-function computeCompatibility(signA, signB) {
-  if (!signA || !signB) return 50;
+// Улучшенный алгоритм: учитывает знак, опросники и темы оракула
+function computeCompatibility(signA, signB, dataA = {}, dataB = {}) {
   const elA = ELEMENTS[signA];
   const elB = ELEMENTS[signB];
-  let score = ELEMENT_COMPAT[elA]?.[elB] ?? 55;
+  let score = (signA && signB) ? (ELEMENT_COMPAT[elA]?.[elB] ?? 55) : 50;
   score += (SIGN_BONUS[`${signA}-${signB}`] || 0);
-  if (signA === signB) score += 5;
+  if (signA && signA === signB) score += 5;
+
+  // Бонус за общие темы оракула (жизненные векторы)
+  const storiesA = dataA?.oracle_memory?.active_storylines || [];
+  const storiesB = dataB?.oracle_memory?.active_storylines || [];
+  const sharedStories = storiesA.filter(s => storiesB.includes(s));
+  score += sharedStories.length * 8;
+
+  // Бонус если оба прошли опросники (глубокий профиль)
+  if ((dataA?.completed_quizzes || []).length >= 3 && (dataB?.completed_quizzes || []).length >= 3) {
+    score += 5;
+  }
+
+  // Бонус за совпадающий тип личности (soul_archetype)
+  if (dataA?.soul_archetype && dataA.soul_archetype === dataB?.soul_archetype) {
+    score += 8;
+  }
+
   return Math.min(99, Math.max(1, score));
 }
 
+// Причина совместимости (для UI)
+function compatibilityReason(signA, signB, dataA = {}, dataB = {}) {
+  const storiesA = dataA?.oracle_memory?.active_storylines || [];
+  const storiesB = dataB?.oracle_memory?.active_storylines || [];
+  const shared   = storiesA.filter(s => storiesB.includes(s));
+  if (shared.length > 0) return `Общие темы: ${shared.slice(0, 2).join(", ")}`;
+  if (dataA?.soul_archetype && dataA.soul_archetype === dataB?.soul_archetype) {
+    return `Один архетип: ${dataA.soul_archetype}`;
+  }
+  const elA = ELEMENTS[signA];
+  const elB = ELEMENTS[signB];
+  if (elA && elA === elB) return `Одна стихия: ${ELEMENT_NAMES_RU[elA] || elA}`;
+  if (COMPATIBLE_ELEMENTS[elA]?.includes(elB)) return `${ELEMENT_NAMES_RU[elA]} и ${ELEMENT_NAMES_RU[elB]} — дополняют друг друга`;
+  return "Кармическое притяжение";
+}
+
+// ── Chat handlers ─────────────────────────────────────────────
+async function handleGetChatMessages(req, res) {
+  const { ok, id } = resolveUserId(req, req.query?.viewer_id || null);
+  if (!ok) return res.status(401).json({ error: "Не авторизован" });
+
+  const withId = req.query.with_id;
+  if (!withId) return res.status(400).json({ error: "with_id обязателен" });
+
+  const key = chatKey(id, withId);
+  const db  = getSupabase();
+  try {
+    let query = db
+      .from("mystic_chat_messages")
+      .select("id, sender_id, sender_alias, text, created_at")
+      .eq("chat_key", key)
+      .order("created_at", { ascending: true })
+      .limit(100);
+    if (req.query.after) query = query.gt("created_at", req.query.after);
+    const { data: messages, error } = await query;
+    if (error) throw error;
+    return res.status(200).json({ messages: messages || [] });
+  } catch (e) {
+    console.error("[community/chat GET]", e.message);
+    return res.status(500).json({ error: "Ошибка загрузки чата" });
+  }
+}
+
+async function handlePostChatMessage(req, res) {
+  const { ok, id } = resolveUserId(req, req.body?.telegram_id || null);
+  if (!ok) return res.status(401).json({ error: "Не авторизован" });
+
+  if (!rateLimit(`chat_${id}`, 60, 60 * 60_000)) {
+    return res.status(429).json({ error: "Слишком много сообщений — подожди" });
+  }
+
+  const { to_id, text } = req.body || {};
+  if (!to_id) return res.status(400).json({ error: "to_id обязателен" });
+  if (String(to_id) === String(id)) return res.status(400).json({ error: "Нельзя писать себе" });
+
+  const trimmed = typeof text === "string" ? text.trim() : "";
+  if (trimmed.length < 1 || trimmed.length > 500) {
+    return res.status(400).json({ error: "Сообщение: от 1 до 500 символов" });
+  }
+
+  const key = chatKey(id, to_id);
+  const db  = getSupabase();
+  try {
+    const { data: ud } = await db.from("mystic_users").select("data").eq("telegram_id", id).maybeSingle();
+    const d    = ud?.data || {};
+    const alias = buildAlias(id, d.sun_sign || null, getActiveTier(d));
+
+    const { data: message, error } = await db
+      .from("mystic_chat_messages")
+      .insert({ chat_key: key, sender_id: String(id), sender_alias: alias, text: trimmed })
+      .select("id, sender_id, sender_alias, text, created_at")
+      .single();
+    if (error) throw error;
+    return res.status(201).json({ message });
+  } catch (e) {
+    console.error("[community/chat POST]", e.message);
+    return res.status(500).json({ error: "Не удалось отправить сообщение" });
+  }
+}
+
 async function handleGetThreads(req, res) {
+  // Route chat sub-action
+  if (req.query.chat === "1") return handleGetChatMessages(req, res);
+
   const { ok, id } = resolveUserId(req, req.query?.viewer_id || null);
   if (!ok) return res.status(401).json({ error: "Не авторизован" });
 
@@ -374,14 +486,17 @@ async function handleGetThreads(req, res) {
 
       const alreadyLinked = new Set((existing || []).map(t => String(t.to_id)));
 
+      const myData = me?.data || {};
       const scored = (candidates || [])
         .filter(c => !alreadyLinked.has(String(c.telegram_id)))
         .map(c => {
-          const d = c.data || {};
-          const sign  = d.sun_sign || null;
-          const tier  = getActiveTier(d);
+          const d    = c.data || {};
+          const sign = d.sun_sign || null;
+          const tier = getActiveTier(d);
           const alias = buildAlias(c.telegram_id, sign, tier);
-          return { telegram_id: c.telegram_id, alias, sign, tier, compatibility: computeCompatibility(mySign, sign) };
+          const compatibility = computeCompatibility(mySign, sign, myData, d);
+          const reason        = compatibilityReason(mySign, sign, myData, d);
+          return { telegram_id: c.telegram_id, alias, sign, tier, compatibility, reason };
         })
         .sort((a, b) => b.compatibility - a.compatibility)
         .slice(0, 5);
@@ -410,6 +525,9 @@ async function handleGetThreads(req, res) {
 }
 
 async function handlePostThreads(req, res) {
+  // Route chat sub-action
+  if (req.body?.action === "chat") return handlePostChatMessage(req, res);
+
   const { ok, id } = resolveUserId(req, req.body?.telegram_id || null);
   if (!ok) return res.status(401).json({ error: "Не авторизован" });
 

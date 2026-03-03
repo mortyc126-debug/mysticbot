@@ -74,3 +74,45 @@ export async function deleteThread(toId) {
     return null;
   }
 }
+
+/**
+ * Загружает историю сообщений с пользователем.
+ * @param {string|number} withId — telegram_id собеседника
+ * @param {string}        after  — ISO-дата: только сообщения после этого момента
+ */
+export async function fetchChatMessages(withId, after = null) {
+  try {
+    const q = { chat: "1", with_id: withId };
+    if (after) q.after = after;
+    const res = await fetch(`/api/threads?${new URLSearchParams(q)}`, {
+      method:  "GET",
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) return null;
+    return await res.json(); // { messages: [...] }
+  } catch (e) {
+    console.warn("[Chat] fetchChatMessages:", e.message);
+    return null;
+  }
+}
+
+/**
+ * Отправить сообщение в анонимный чат.
+ * @param {string|number} toId — telegram_id получателя
+ * @param {string}        text — текст (1–500 символов)
+ */
+export async function sendChatMessage(toId, text) {
+  try {
+    const res = await fetch("/api/threads", {
+      method:  "POST",
+      headers: getAuthHeaders(),
+      body:    JSON.stringify({ action: "chat", to_id: toId, text }),
+    });
+    const json = await res.json();
+    if (!res.ok) return { error: json.error || "Ошибка" };
+    return json; // { message }
+  } catch (e) {
+    console.warn("[Chat] sendChatMessage:", e.message);
+    return { error: "Нет соединения" };
+  }
+}

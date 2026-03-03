@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { AppHeader, Modal, Btn, SLabel } from "../components/UI";
 import { getMysticalAlias, getActiveTier, TIER_ICONS, TIER_LABELS } from "../hooks/alias";
 import { fetchPosts, createPost, reactToPost, fetchComments, createComment } from "../api/posts";
-import { fetchMyThreads, discoverSouls, createThread, deleteThread } from "../api/threads";
+import { fetchMyThreads, discoverSouls, createThread, deleteThread, fetchChatMessages, sendChatMessage } from "../api/threads";
 import { fetchRitual, joinRitual }                          from "../api/ritual";
 import { getUserId } from "../api/backend";
 import {
@@ -43,11 +43,12 @@ function getWeekQuestion() {
 // ── Типы постов ──────────────────────────────────────────────
 const POST_TYPES = [
   { id: "all",         label: "Все",          icon: "🌐" },
-  { id: "prophecy",    label: "Пророчества",  icon: "🔮" },
   { id: "ritual",      label: "Ритуалы",      icon: "🕯️" },
   { id: "reflection",  label: "Размышления",  icon: "🌙" },
   { id: "confession",  label: "Признания",    icon: "🖤" },
 ];
+// Типы для создания поста (prophecy убрана — пользователи не должны «играть в Оракула»)
+const CREATE_POST_TYPES = POST_TYPES.filter(t => t.id !== "all");
 
 const POST_TYPE_META = {
   prophecy:   { label: "Пророчество",  icon: "🔮", color: "rgba(139,92,246,0.15)", border: "rgba(139,92,246,0.3)", text: "#a78bfa" },
@@ -442,7 +443,7 @@ function MoonWidget() {
 }
 
 // ── Нить Судьбы: карточка совместимой души ───────────────────
-function SoulCard({ soul, onConnect, loading }) {
+function SoulCard({ soul, onConnect, onChat, loading }) {
   const compatColor =
     soul.compatibility >= 80 ? "#22c55e" :
     soul.compatibility >= 60 ? "#fbbf24" : "#94a3b8";
@@ -480,26 +481,41 @@ function SoulCard({ soul, onConnect, loading }) {
         </div>
         <div style={{ fontSize: 8, color: "var(--text2)" }}>связь</div>
       </div>
-      {/* Кнопка */}
-      <button
-        onClick={() => onConnect(soul)}
-        disabled={loading}
-        style={{
-          flexShrink: 0, padding: "6px 12px", borderRadius: 10,
-          background: "var(--accent)", color: "white",
-          border: "none", fontSize: 11, fontWeight: 700,
-          cursor: loading ? "default" : "pointer",
-          opacity: loading ? 0.6 : 1,
-        }}
-      >
-        Нить
-      </button>
+      {/* Кнопка чата */}
+      {onChat && (
+        <button
+          onClick={() => onChat(soul)}
+          style={{
+            flexShrink: 0, padding: "6px 10px", borderRadius: 10,
+            background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)",
+            color: "#a78bfa", fontSize: 14, cursor: "pointer",
+          }}
+        >
+          💬
+        </button>
+      )}
+      {/* Кнопка нити */}
+      {onConnect && (
+        <button
+          onClick={() => onConnect(soul)}
+          disabled={loading}
+          style={{
+            flexShrink: 0, padding: "6px 12px", borderRadius: 10,
+            background: "var(--accent)", color: "white",
+            border: "none", fontSize: 11, fontWeight: 700,
+            cursor: loading ? "default" : "pointer",
+            opacity: loading ? 0.6 : 1,
+          }}
+        >
+          Нить
+        </button>
+      )}
     </div>
   );
 }
 
 // ── Карточка активной нити (исходящей) ───────────────────────
-function ThreadCard({ thread, onDelete }) {
+function ThreadCard({ thread, onDelete, onChat }) {
   const daysLeft = Math.max(0, Math.round(
     (new Date(thread.expires_at) - Date.now()) / (24 * 60 * 60 * 1000)
   ));
@@ -536,6 +552,18 @@ function ThreadCard({ thread, onDelete }) {
             <span>{daysLeft} {daysLeft === 1 ? "день" : "дн"}</span>
           </div>
         </div>
+        {onChat && (
+          <button
+            onClick={() => onChat(thread)}
+            style={{
+              flexShrink: 0, padding: "4px 8px", borderRadius: 8,
+              background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)",
+              color: "#a78bfa", fontSize: 12, cursor: "pointer",
+            }}
+          >
+            💬
+          </button>
+        )}
         <button
           onClick={() => onDelete(thread.to_id)}
           style={{
@@ -592,7 +620,6 @@ export default function Community({ state, showToast }) {
   const myUserId   = getUserId();
   const myAlias    = getMysticalAlias(myUserId, user.sun_sign, activeTier);
   const pulse      = getCollectivePulse();
-  const question   = getWeekQuestion();
   const darkMoon   = isDarkMoon();
   const myElement  = getElement(user.sun_sign);
   const myCircle   = getCircleMeta(user.sun_sign);
@@ -631,6 +658,12 @@ export default function Community({ state, showToast }) {
   const [connectTarget, setConnectTarget] = useState(null);
   const [threadSignal,  setThreadSignal]  = useState("");
   const [connectLoading, setConnectLoading] = useState(false);
+  // ── Анонимный чат Нитей ──────────────────────────────────
+  const [activeChat,    setActiveChat]    = useState(null);   // { telegram_id, alias, compatibility }
+  const [chatMessages,  setChatMessages]  = useState([]);
+  const [chatInput,     setChatInput]     = useState("");
+  const [chatSending,   setChatSending]   = useState(false);
+  const chatPollRef = useRef(null);
 
   // ── Ритуал дня ────────────────────────────────────────────
   const [ritual,        setRitual]        = useState(null);   // { total_count, participated }
@@ -834,6 +867,41 @@ export default function Community({ state, showToast }) {
     showToast("🌑 Нить оборвана");
   };
 
+  // ── Анонимный чат: открыть ───────────────────────────────
+  const openChat = async (soul) => {
+    setActiveChat(soul);
+    setChatMessages([]);
+    setChatInput("");
+    const data = await fetchChatMessages(soul.telegram_id);
+    if (data && data.messages) setChatMessages(data.messages);
+    // Поллинг каждые 5 секунд
+    if (chatPollRef.current) clearInterval(chatPollRef.current);
+    chatPollRef.current = setInterval(async () => {
+      const d = await fetchChatMessages(soul.telegram_id);
+      if (d && d.messages) setChatMessages(d.messages);
+    }, 5000);
+  };
+
+  const closeChat = () => {
+    if (chatPollRef.current) { clearInterval(chatPollRef.current); chatPollRef.current = null; }
+    setActiveChat(null);
+    setChatMessages([]);
+    setChatInput("");
+  };
+
+  const handleSendChatMessage = async () => {
+    if (!chatInput.trim() || chatSending || !activeChat) return;
+    const text = chatInput.trim();
+    setChatInput("");
+    setChatSending(true);
+    const res = await sendChatMessage(activeChat.telegram_id, text);
+    setChatSending(false);
+    if (res.error) { showToast("❌ " + res.error); return; }
+    // Обновляем сообщения
+    const d = await fetchChatMessages(activeChat.telegram_id);
+    if (d && d.messages) setChatMessages(d.messages);
+  };
+
   const tierColor = activeTier === "premium" ? "var(--gold2)" : activeTier === "vip" ? "var(--accent)" : "var(--text2)";
 
   return (
@@ -976,27 +1044,6 @@ export default function Community({ state, showToast }) {
               transition: "width 1s ease",
             }} />
           </div>
-        </div>
-
-        {/* ── Вопрос дня от Оракула ────────────────────────── */}
-        <SLabel>🔮 Вопрос от Оракула</SLabel>
-        <div style={{
-          background: "linear-gradient(135deg, rgba(139,92,246,0.1), rgba(139,92,246,0.04))",
-          border: "1px solid rgba(139,92,246,0.25)",
-          borderRadius: 16, padding: "14px 16px",
-        }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", lineHeight: 1.6, marginBottom: 12, fontStyle: "italic" }}>
-            «{question}»
-          </div>
-          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 8, lineHeight: 1.5 }}>
-            Твой ответ опубликуется анонимно в ленту сообщества — его увидят все участники
-          </div>
-          <Btn
-            size="sm"
-            onClick={() => { setCreateType("reflection"); setCreateText(""); setShowCreate(true); }}
-          >
-            ✍️ Ответить сообществу
-          </Btn>
         </div>
 
         {/* ── Твой Круг (стихия) ───────────────────────────── */}
@@ -1204,7 +1251,7 @@ export default function Community({ state, showToast }) {
             <div style={{ fontSize: 40, marginBottom: 10 }}>🌑</div>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Здесь пока тихо</div>
             <div style={{ fontSize: 12, lineHeight: 1.6 }}>
-              Стань первым! Нажми <b>✦ Написать</b> чтобы поделиться пророчеством, ритуалом или размышлением — это видят все участники сообщества
+              Поделись своей историей, ритуалом или переживанием — нажми <b>✦ Написать</b>. Всё анонимно, тебя никто не узнает.
             </div>
           </div>
         ) : (
@@ -1251,7 +1298,7 @@ export default function Community({ state, showToast }) {
       >
         {/* Выбор типа */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
-          {POST_TYPES.filter(t => t.id !== "all").map(t => {
+          {CREATE_POST_TYPES.map(t => {
             const meta = POST_TYPE_META[t.id];
             const sel  = createType === t.id;
             return (
@@ -1282,15 +1329,6 @@ export default function Community({ state, showToast }) {
         </div>
 
         {/* Подсказка для выбранного типа */}
-        {createType === "prophecy" && (
-          <div style={{
-            fontSize: 11, color: "#a78bfa", background: "rgba(139,92,246,0.08)",
-            border: "1px solid rgba(139,92,246,0.2)", borderRadius: 9, padding: "7px 10px", marginBottom: 10,
-            lineHeight: 1.5,
-          }}>
-            🔮 Напиши предсказание о будущем. Через 30 дней сообщество проголосует: сбылось или нет. Чем точнее твоё пророчество — тем выше твой Индекс Судьбы.
-          </div>
-        )}
         {createType === "confession" && (
           <div style={{
             fontSize: 11, color: "#f87171", background: "rgba(239,68,68,0.06)",
@@ -1316,9 +1354,8 @@ export default function Community({ state, showToast }) {
           value={createText}
           onChange={e => setCreateText(e.target.value.slice(0, 500))}
           placeholder={
-            createType === "prophecy"   ? "Напиши своё пророчество…" :
             createType === "ritual"     ? "Опиши ритуал, который изменил тебя…" :
-            createType === "reflection" ? "Поделись размышлением со звёздами…" :
+            createType === "reflection" ? "Поделись своей историей, мыслью или знаком судьбы…" :
                                           "Тёмное зеркало твоей души…"
           }
           disabled={createLoading}
@@ -1359,10 +1396,79 @@ export default function Community({ state, showToast }) {
       ══════════════════════════════════════════════════════ */}
       <Modal
         open={showThreads}
-        onClose={() => setShowThreads(false)}
-        title="🕸️ Нити Судьбы"
+        onClose={() => { closeChat(); setShowThreads(false); }}
+        title={activeChat ? `💬 ${activeChat.alias}` : "🕸️ Нити Судьбы"}
       >
-        {threadsLoading ? (
+        {/* ── Вид чата ── */}
+        {activeChat ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {/* Заголовок чата */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10, marginBottom: 12,
+              background: "var(--bg3)", borderRadius: 12, padding: "10px 12px",
+            }}>
+              <button onClick={closeChat} style={{
+                background: "none", border: "none", color: "var(--text2)",
+                fontSize: 18, cursor: "pointer", padding: 0, lineHeight: 1,
+              }}>←</button>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{activeChat.alias}</div>
+                <div style={{ fontSize: 10, color: "var(--text2)" }}>{activeChat.compatibility}% совместимость · анонимный чат</div>
+              </div>
+            </div>
+            {/* Сообщения */}
+            <div style={{
+              minHeight: 200, maxHeight: 320, overflowY: "auto",
+              display: "flex", flexDirection: "column", gap: 6,
+              marginBottom: 10, padding: "4px 0",
+            }}>
+              {chatMessages.length === 0 ? (
+                <div style={{ textAlign: "center", color: "var(--text2)", fontSize: 12, padding: "40px 0" }}>
+                  Начни разговор первым ✨
+                </div>
+              ) : chatMessages.map(msg => {
+                const isMe = String(msg.sender_id) === String(getUserId());
+                return (
+                  <div key={msg.id} style={{
+                    alignSelf: isMe ? "flex-end" : "flex-start",
+                    maxWidth: "80%",
+                    background: isMe ? "rgba(139,92,246,0.18)" : "var(--bg3)",
+                    border: `1px solid ${isMe ? "rgba(139,92,246,0.3)" : "var(--border)"}`,
+                    borderRadius: isMe ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                    padding: "8px 12px",
+                  }}>
+                    {!isMe && <div style={{ fontSize: 9, color: "var(--text2)", marginBottom: 3 }}>{msg.sender_alias}</div>}
+                    <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.5 }}>{msg.text}</div>
+                    <div style={{ fontSize: 9, color: "var(--text2)", marginTop: 2, textAlign: "right" }}>
+                      {new Date(msg.created_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Ввод сообщения */}
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+              <textarea
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value.slice(0, 500))}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChatMessage(); } }}
+                placeholder="Сообщение…"
+                disabled={chatSending}
+                rows={2}
+                style={{
+                  flex: 1, padding: "10px 12px", borderRadius: 12,
+                  background: "var(--bg3)", border: "1px solid var(--border)",
+                  color: "var(--text)", fontSize: 13, resize: "none",
+                  outline: "none", fontFamily: "inherit", boxSizing: "border-box",
+                }}
+              />
+              <Btn size="sm" onClick={handleSendChatMessage} disabled={!chatInput.trim() || chatSending}
+                style={{ minWidth: 60, height: 44 }}>
+                {chatSending ? "…" : "→"}
+              </Btn>
+            </div>
+          </div>
+        ) : threadsLoading ? (
           <div style={{ textAlign: "center", padding: "30px 0", color: "var(--text2)" }}>
             <div style={{ fontSize: 28, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }}>🕸️</div>
             <div style={{ fontSize: 12 }}>Ищем кармические связи…</div>
@@ -1370,7 +1476,7 @@ export default function Community({ state, showToast }) {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-            {/* Активные нити */}
+            {/* Активные нити — с кнопкой чата */}
             {myThreads.outgoing.length > 0 && (
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
@@ -1378,7 +1484,12 @@ export default function Community({ state, showToast }) {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {myThreads.outgoing.map(t => (
-                    <ThreadCard key={t.id} thread={t} onDelete={handleDeleteThread} />
+                    <ThreadCard
+                      key={t.id}
+                      thread={t}
+                      onDelete={handleDeleteThread}
+                      onChat={t2 => openChat({ telegram_id: t2.to_id, alias: t2.to_alias || "Анон", compatibility: t2.compatibility })}
+                    />
                   ))}
                 </div>
               </div>
@@ -1395,12 +1506,27 @@ export default function Community({ state, showToast }) {
                     <div key={t.id} style={{
                       background: "var(--card)", border: "1px solid var(--border)",
                       borderRadius: 14, padding: "12px 14px",
+                      display: "flex", alignItems: "center", gap: 10,
                     }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>{t.from_alias}</div>
-                      <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 2 }}>
-                        {t.compatibility}% совместимость
-                        {t.is_mutual && <span style={{ color: "#a78bfa", marginLeft: 6 }}>✦ Взаимная</span>}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>{t.from_alias}</div>
+                        <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 2 }}>
+                          {t.compatibility}% совместимость
+                          {t.is_mutual && <span style={{ color: "#a78bfa", marginLeft: 6 }}>✦ Взаимная</span>}
+                        </div>
                       </div>
+                      {t.is_mutual && (
+                        <button
+                          onClick={() => openChat({ telegram_id: t.from_id, alias: t.from_alias || "Анон", compatibility: t.compatibility })}
+                          style={{
+                            flexShrink: 0, padding: "4px 8px", borderRadius: 8,
+                            background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)",
+                            color: "#a78bfa", fontSize: 12, cursor: "pointer",
+                          }}
+                        >
+                          💬
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1414,7 +1540,7 @@ export default function Community({ state, showToast }) {
                   Кармически близкие души
                 </div>
                 <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 10, lineHeight: 1.5 }}>
-                  Анонимные пользователи с высокой астрологической совместимостью. Нажми «Нить» — отправь кармический сигнал. Это не чат: получатель видит только % связи и необязательное послание.
+                  Топ-5 анонимных пользователей с высокой совместимостью. Протяни нить или начни анонимный чат.
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {souls.map(soul => (
@@ -1422,6 +1548,7 @@ export default function Community({ state, showToast }) {
                       key={soul.telegram_id}
                       soul={soul}
                       onConnect={handleConnect}
+                      onChat={s => openChat({ telegram_id: s.telegram_id, alias: s.alias, compatibility: s.compatibility })}
                       loading={connectLoading}
                     />
                   ))}
