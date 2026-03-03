@@ -42,6 +42,28 @@ function getActiveTier(d) {
   return "free";
 }
 
+// ── Очки удачи ───────────────────────────────────────────────
+async function awardLuckPoints(db, telegramId, points) {
+  try {
+    const { data } = await db
+      .from("mystic_users")
+      .select("data")
+      .eq("telegram_id", telegramId)
+      .maybeSingle();
+    if (!data?.data) return;
+    const current = data.data.luck_points ?? 0;
+    await db
+      .from("mystic_users")
+      .update({
+        data: { ...data.data, luck_points: current + points },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("telegram_id", telegramId);
+  } catch (e) {
+    console.warn("[awardLuckPoints]", e.message);
+  }
+}
+
 // ── POSTS ────────────────────────────────────────────────────
 const PAGE_SIZE = 30;
 const MAX_TEXT  = 500;
@@ -56,7 +78,91 @@ const CIRCLE_SIGNS = {
   water: ["Рак", "Скорпион", "Рыбы"],
 };
 
+async function handleGetComments(req, res) {
+  const { ok } = resolveUserId(req, req.query?.viewer_id || null);
+  if (!ok) return res.status(401).json({ error: "Не авторизован" });
+
+  const postId = req.query.post_id;
+  if (!postId) return res.status(400).json({ error: "post_id обязателен" });
+
+  const db = getSupabase();
+  try {
+    const { data: comments, error } = await db
+      .from("mystic_post_comments")
+      .select("id, alias, text, created_at")
+      .eq("post_id", postId)
+      .order("created_at", { ascending: true })
+      .limit(50);
+    if (error) throw error;
+    return res.status(200).json({ comments: comments || [] });
+  } catch (e) {
+    console.error("[community/comments GET]", e.message);
+    return res.status(500).json({ error: "Ошибка загрузки комментариев" });
+  }
+}
+
+async function handlePostComment(req, res) {
+  const { ok, id } = resolveUserId(req, req.body?.telegram_id || null);
+  if (!ok) return res.status(401).json({ error: "Не авторизован" });
+
+  if (!rateLimit(`comment_${id}`, 30, 60 * 60_000)) {
+    return res.status(429).json({ error: "Слишком много комментариев — подожди" });
+  }
+
+  const { post_id, text } = req.body || {};
+  if (!post_id) return res.status(400).json({ error: "post_id обязателен" });
+
+  const trimmed = typeof text === "string" ? text.trim() : "";
+  if (trimmed.length < 1 || trimmed.length > 300) {
+    return res.status(400).json({ error: "Комментарий: от 1 до 300 символов" });
+  }
+
+  const db = getSupabase();
+  try {
+    const { data: postData } = await db
+      .from("mystic_posts")
+      .select("telegram_id, comments_count")
+      .eq("id", post_id)
+      .maybeSingle();
+    if (!postData) return res.status(404).json({ error: "Пост не найден" });
+
+    const { data: userData } = await db
+      .from("mystic_users")
+      .select("data")
+      .eq("telegram_id", id)
+      .maybeSingle();
+    const d = userData?.data || {};
+    const alias = buildAlias(id, d.sun_sign || null, getActiveTier(d));
+
+    const { data: comment, error } = await db
+      .from("mystic_post_comments")
+      .insert({ post_id, telegram_id: id, alias, text: trimmed })
+      .select("id, alias, text, created_at")
+      .single();
+    if (error) throw error;
+
+    // Increment comments_count
+    await db
+      .from("mystic_posts")
+      .update({ comments_count: (postData.comments_count || 0) + 1 })
+      .eq("id", post_id);
+
+    // Award 3 luck points to post author (not to self)
+    if (String(postData.telegram_id) !== String(id)) {
+      await awardLuckPoints(db, postData.telegram_id, 3);
+    }
+
+    return res.status(201).json({ comment, new_count: (postData.comments_count || 0) + 1 });
+  } catch (e) {
+    console.error("[community/comments POST]", e.message);
+    return res.status(500).json({ error: "Не удалось добавить комментарий" });
+  }
+}
+
 async function handleGetPosts(req, res) {
+  // Route comments sub-action
+  if (req.query.comments === "1") return handleGetComments(req, res);
+
   const { ok, id } = resolveUserId(req, req.query?.viewer_id || null);
   if (!ok) return res.status(401).json({ error: "Не авторизован" });
 
@@ -71,7 +177,7 @@ async function handleGetPosts(req, res) {
   try {
     let query = db
       .from("mystic_posts")
-      .select("id, type, text, alias, tier, sun_sign, energy_count, verified_count, disputed_count, verify_deadline, created_at")
+      .select("id, type, text, alias, tier, sun_sign, energy_count, verified_count, disputed_count, comments_count, verify_deadline, created_at")
       .order("created_at", { ascending: false })
       .range(from, to);
 
@@ -101,6 +207,9 @@ async function handleGetPosts(req, res) {
 }
 
 async function handlePostPosts(req, res) {
+  // Route comment sub-action
+  if (req.body?.action === "comment") return handlePostComment(req, res);
+
   const { ok, id } = resolveUserId(req, req.body?.telegram_id || null);
   if (!ok) return res.status(401).json({ error: "Не авторизован" });
 
@@ -131,7 +240,7 @@ async function handlePostPosts(req, res) {
     const { data: post, error } = await db
       .from("mystic_posts")
       .insert({ telegram_id: id, type, text: trimmed, alias, tier, sun_sign: sunSign, verify_deadline: verifyDeadline })
-      .select("id, type, text, alias, tier, sun_sign, energy_count, verified_count, disputed_count, verify_deadline, created_at")
+      .select("id, type, text, alias, tier, sun_sign, energy_count, verified_count, disputed_count, comments_count, verify_deadline, created_at")
       .single();
 
     if (error) throw error;
@@ -188,6 +297,12 @@ async function handlePatchPosts(req, res) {
     await db.from("mystic_post_reactions").insert({ post_id, telegram_id: id, reaction });
     const inc = { [`${reaction}_count`]: post[`${reaction}_count`] + 1 };
     await db.from("mystic_posts").update(inc).eq("id", post_id);
+
+    // Award 1 luck point to post author for "energy" reaction
+    if (reaction === "energy") {
+      await awardLuckPoints(db, post.telegram_id, 1);
+    }
+
     return res.status(200).json({ ok: true, toggled: "on", reaction });
   } catch (e) {
     console.error("[community/posts PATCH]", e.message);

@@ -125,17 +125,86 @@ async function handleDecryptDiary(req, res) {
   }
 }
 
+// ── GET: проверка прав администратора ───────────────────────
+async function handleCheckAdmin(req, res) {
+  const { ok, id } = resolveUserId(req, req.query?.admin_id || null);
+  if (!ok || !isAdminId(id)) return res.status(403).json({ error: "Доступ запрещён" });
+  return res.status(200).json({ is_admin: true });
+}
+
+// ── POST: удалить пост (только админ) ───────────────────────
+async function handleDeletePost(req, res) {
+  const { ok, id } = resolveUserId(req, req.body?.admin_id || null);
+  if (!ok || !isAdminId(id)) return res.status(403).json({ error: "Доступ запрещён" });
+
+  const { post_id } = req.body || {};
+  if (!post_id) return res.status(400).json({ error: "post_id обязателен" });
+
+  try {
+    await getSupabase().from("mystic_posts").delete().eq("id", post_id);
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.error("[admin/delete-post]", e.message);
+    return res.status(500).json({ error: "Ошибка удаления поста" });
+  }
+}
+
+// ── POST: удалить комментарий (только админ) ─────────────────
+async function handleDeleteComment(req, res) {
+  const { ok, id } = resolveUserId(req, req.body?.admin_id || null);
+  if (!ok || !isAdminId(id)) return res.status(403).json({ error: "Доступ запрещён" });
+
+  const { comment_id } = req.body || {};
+  if (!comment_id) return res.status(400).json({ error: "comment_id обязателен" });
+
+  try {
+    // Decrement comments_count on the parent post
+    const { data: comment } = await getSupabase()
+      .from("mystic_post_comments")
+      .select("post_id")
+      .eq("id", comment_id)
+      .maybeSingle();
+
+    await getSupabase().from("mystic_post_comments").delete().eq("id", comment_id);
+
+    if (comment?.post_id) {
+      const { data: post } = await getSupabase()
+        .from("mystic_posts")
+        .select("comments_count")
+        .eq("id", comment.post_id)
+        .maybeSingle();
+      if (post) {
+        await getSupabase()
+          .from("mystic_posts")
+          .update({ comments_count: Math.max(0, (post.comments_count || 0) - 1) })
+          .eq("id", comment.post_id);
+      }
+    }
+
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.error("[admin/delete-comment]", e.message);
+    return res.status(500).json({ error: "Ошибка удаления комментария" });
+  }
+}
+
 // ── Роутинг ─────────────────────────────────────────────────
 export default async function handler(req, res) {
   setCorsHeaders(res, "GET, POST, OPTIONS");
   setSecurityHeaders(res);
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  if (req.method === "GET") return handleStats(req, res);
+  if (req.method === "GET") {
+    const action = req.query?.action;
+    if (action === "check") return handleCheckAdmin(req, res);
+    return handleStats(req, res);
+  }
 
   if (req.method === "POST") {
     const action = req.body?.action;
     if (action === "decrypt-diary") return handleDecryptDiary(req, res);
+    if (action === "delete-post")    return handleDeletePost(req, res);
+    if (action === "delete-comment") return handleDeleteComment(req, res);
     return res.status(400).json({ error: "Unknown action" });
   }
 

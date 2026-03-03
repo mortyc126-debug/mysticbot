@@ -78,3 +78,44 @@ export async function reactToPost(postId, reaction) {
     return null;
   }
 }
+
+/**
+ * Загружает комментарии к посту.
+ * @param {string} postId — UUID поста
+ * @returns {{ comments: Array } | null}
+ */
+export async function fetchComments(postId) {
+  try {
+    const res = await fetch(`/api/posts?comments=1&post_id=${postId}`, {
+      method:  "GET",
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    console.warn("[Posts] fetchComments error:", e.message);
+    return null;
+  }
+}
+
+/**
+ * Оставляет комментарий к посту.
+ * @param {string} postId — UUID поста
+ * @param {string} text   — текст комментария (1–300 символов)
+ * @returns {{ comment: object, new_count: number } | { error: string }}
+ */
+export async function createComment(postId, text) {
+  try {
+    const res = await fetch("/api/posts", {
+      method:  "POST",
+      headers: getAuthHeaders(),
+      body:    JSON.stringify({ action: "comment", post_id: postId, text }),
+    });
+    const json = await res.json();
+    if (!res.ok) return { error: json.error || "Ошибка" };
+    return json;
+  } catch (e) {
+    console.warn("[Posts] createComment error:", e.message);
+    return { error: "Нет соединения" };
+  }
+}
