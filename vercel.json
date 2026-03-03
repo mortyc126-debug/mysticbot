@@ -3,6 +3,10 @@
   "outputDirectory": "mysticbot/dist",
   "installCommand": "npm install",
   "rewrites": [
+    { "source": "/api/posts",    "destination": "/api/community?_s=posts" },
+    { "source": "/api/threads",  "destination": "/api/community?_s=threads" },
+    { "source": "/api/ritual",   "destination": "/api/community?_s=ritual" },
+    { "source": "/api/referral", "destination": "/api/promo?_s=referral" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
