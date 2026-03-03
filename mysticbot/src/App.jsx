@@ -14,6 +14,7 @@ import OracleChat from "./pages/OracleChat";
 import Feed from "./pages/Feed";
 import Quizzes from "./pages/Quizzes";
 import Investigation from "./pages/Investigation";
+import Community from "./pages/Community";
 import BottomNav from "./components/BottomNav";
 import LuckToast from "./components/LuckToast";
 import TelegramSDK from "./api/telegram";
@@ -29,9 +30,10 @@ import { getZodiacSign } from "./hooks/useAppState";
 // ============================================================
 
 // Страницы основной навигации (нижнее меню)
-const NAV_PAGES = { home: Home, tarot: Tarot, astrology: Astrology, feed: Feed, diary: DiaryPage, profile: Profile };
+const NAV_PAGES = { home: Home, tarot: Tarot, community: Community, feed: Feed, diary: DiaryPage, profile: Profile };
 // Страницы второго уровня (открываются кнопками внутри приложения)
-const EXTRA_PAGES = { runes: Runes, palmistry: Palmistry, aura: Aura, oracle: OracleChat, quizzes: Quizzes, investigation: Investigation };
+// astrology перенесена сюда — таб заменён на community, но страница доступна из Home
+const EXTRA_PAGES = { runes: Runes, palmistry: Palmistry, aura: Aura, oracle: OracleChat, quizzes: Quizzes, investigation: Investigation, astrology: Astrology };
 const PAGES = { ...NAV_PAGES, ...EXTRA_PAGES };
 
 export default function App() {
