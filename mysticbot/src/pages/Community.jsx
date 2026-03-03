@@ -1,19 +1,19 @@
 // ============================================================
 // МИСТИЧЕСКОЕ СООБЩЕСТВО — страница публичной соцсети
 //
-// Структура:
-//  ┌ AppHeader (с тиром и удачей)
-//  ├ Коллективный пульс (настроение сообщества, анонимно)
-//  ├ Вопрос дня от Оракула (меняется каждую неделю)
-//  ├ Фильтр типов постов
-//  ├ Лента постов
-//  └ Модальное окно создания поста
+// Phase 1: Лента постов (пророчества, ритуалы, размышления, признания)
+// Phase 2: Нити Судьбы, Тёмная Луна, Индекс Судьбы, Лунный виджет
 // ============================================================
 import { useState, useEffect, useCallback, useRef } from "react";
 import { AppHeader, Modal, Btn, SLabel } from "../components/UI";
 import { getMysticalAlias, getActiveTier, TIER_ICONS, TIER_LABELS } from "../hooks/alias";
-import { fetchPosts, createPost, reactToPost } from "../api/posts";
+import { fetchPosts, createPost, reactToPost }              from "../api/posts";
+import { fetchMyThreads, discoverSouls, createThread, deleteThread } from "../api/threads";
 import { getUserId } from "../api/backend";
+import {
+  getLunarPhase, getMoonEmoji, getMoonPhaseName,
+  getMoonEnergyDesc, isDarkMoon, daysUntilNewMoon,
+} from "../hooks/moon";
 
 // ── Вопросы дня (ротация по ISO-неделе) ─────────────────────
 const DAILY_QUESTIONS = [
@@ -78,6 +78,29 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
 }
 
+// ── Индекс Судьбы: точность пророчества ─────────────────────
+function destinyIndex(post) {
+  const total = post.verified_count + post.disputed_count;
+  if (total === 0) return null;
+  return Math.round((post.verified_count / total) * 100);
+}
+
+function DestinyIndexBadge({ post }) {
+  const idx = destinyIndex(post);
+  if (idx === null) return null;
+  const color = idx >= 70 ? "#22c55e" : idx >= 40 ? "#fbbf24" : "#f87171";
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 3,
+      fontSize: 9, fontWeight: 700, color,
+      background: `${color}18`, border: `1px solid ${color}40`,
+      borderRadius: 6, padding: "2px 6px",
+    }}>
+      <span>⚖</span> {idx}%
+    </div>
+  );
+}
+
 // ── Карточка одного поста ────────────────────────────────────
 function PostCard({ post, onReact, isOwn }) {
   const meta    = POST_TYPE_META[post.type] || POST_TYPE_META.reflection;
@@ -118,7 +141,7 @@ function PostCard({ post, onReact, isOwn }) {
       </div>
 
       {/* Реакции */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         {/* Энергия (универсальная) */}
         {!isOwn && (
           <ReactionBtn
@@ -165,6 +188,9 @@ function PostCard({ post, onReact, isOwn }) {
           </div>
         )}
 
+        {/* Индекс Судьбы для пророчеств */}
+        {canVerify && <DestinyIndexBadge post={post} />}
+
         {/* Дедлайн верификации */}
         {canVerify && post.verify_deadline && (
           <div style={{ marginLeft: "auto", fontSize: 9, color: "var(--text2)", alignSelf: "center" }}>
@@ -197,35 +223,226 @@ function ReactionBtn({ icon, count, active, label, activeColor, onClick }) {
   );
 }
 
+// ── Виджет Лунного Календаря ─────────────────────────────────
+function MoonWidget() {
+  const phase     = getLunarPhase();
+  const emoji     = getMoonEmoji();
+  const name      = getMoonPhaseName();
+  const desc      = getMoonEnergyDesc();
+  const darkMoon  = isDarkMoon();
+  const daysLeft  = daysUntilNewMoon();
+  const pct       = Math.round(phase * 100);
+
+  // Цикл: 0% = новолуние (тёмная), 50% = полнолуние (яркая)
+  const brightness = phase < 0.5 ? phase * 2 : (1 - phase) * 2; // 0..1
+  const glowColor  = darkMoon ? "#6366f1" : "#e2c97e";
+
+  return (
+    <div style={{
+      background: darkMoon
+        ? "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))"
+        : "linear-gradient(135deg, rgba(226,201,126,0.08), rgba(226,201,126,0.02))",
+      border: `1px solid ${darkMoon ? "rgba(99,102,241,0.3)" : "rgba(226,201,126,0.2)"}`,
+      borderRadius: 16, padding: "14px 16px",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        {/* Иконка луны */}
+        <div style={{
+          fontSize: 36, lineHeight: 1,
+          filter: `brightness(${0.5 + brightness * 0.7}) drop-shadow(0 0 ${8 + brightness * 8}px ${glowColor}80)`,
+          flexShrink: 0,
+        }}>
+          {emoji}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 14, fontWeight: 800, color: "var(--text)", marginBottom: 2,
+            display: "flex", alignItems: "center", gap: 6,
+          }}>
+            {name}
+            {darkMoon && (
+              <span style={{
+                fontSize: 9, fontWeight: 700, color: "#a5b4fc",
+                background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.35)",
+                borderRadius: 6, padding: "1px 6px",
+              }}>
+                🌑 Тёмная Луна
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--text2)", lineHeight: 1.5 }}>{desc}</div>
+          {!darkMoon && daysLeft > 0 && (
+            <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 4, opacity: 0.7 }}>
+              До новолуния: {daysLeft} {daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"}
+            </div>
+          )}
+        </div>
+        {/* Процент цикла */}
+        <div style={{
+          fontSize: 11, fontWeight: 800, color: glowColor,
+          opacity: 0.85, flexShrink: 0,
+        }}>
+          {pct}%
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Нить Судьбы: карточка совместимой души ───────────────────
+function SoulCard({ soul, onConnect, loading }) {
+  const compatColor =
+    soul.compatibility >= 80 ? "#22c55e" :
+    soul.compatibility >= 60 ? "#fbbf24" : "#94a3b8";
+
+  return (
+    <div style={{
+      background: "var(--card)",
+      border: "1px solid var(--border)",
+      borderRadius: 14, padding: "12px 14px",
+      display: "flex", alignItems: "center", gap: 10,
+    }}>
+      {/* Аватар стихии */}
+      <div style={{
+        width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
+        background: `conic-gradient(${compatColor}60, ${compatColor}20, ${compatColor}60)`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 18, border: `1px solid ${compatColor}40`,
+      }}>
+        {TIER_ICONS[soul.tier] || "🌙"}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", wordBreak: "break-word" }}>
+          {soul.alias}
+        </div>
+        {soul.sign && (
+          <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 1 }}>
+            {soul.sign}
+          </div>
+        )}
+      </div>
+      {/* Совместимость */}
+      <div style={{ flexShrink: 0, textAlign: "center" }}>
+        <div style={{ fontSize: 15, fontWeight: 900, color: compatColor }}>
+          {soul.compatibility}%
+        </div>
+        <div style={{ fontSize: 8, color: "var(--text2)" }}>связь</div>
+      </div>
+      {/* Кнопка */}
+      <button
+        onClick={() => onConnect(soul)}
+        disabled={loading}
+        style={{
+          flexShrink: 0, padding: "6px 12px", borderRadius: 10,
+          background: "var(--accent)", color: "white",
+          border: "none", fontSize: 11, fontWeight: 700,
+          cursor: loading ? "default" : "pointer",
+          opacity: loading ? 0.6 : 1,
+        }}
+      >
+        Нить
+      </button>
+    </div>
+  );
+}
+
+// ── Карточка активной нити (исходящей) ───────────────────────
+function ThreadCard({ thread, onDelete }) {
+  const daysLeft = Math.max(0, Math.round(
+    (new Date(thread.expires_at) - Date.now()) / (24 * 60 * 60 * 1000)
+  ));
+  const compatColor =
+    thread.compatibility >= 80 ? "#22c55e" :
+    thread.compatibility >= 60 ? "#fbbf24" : "#94a3b8";
+
+  return (
+    <div style={{
+      background: "var(--card)",
+      border: `1px solid ${thread.is_mutual ? "rgba(139,92,246,0.4)" : "var(--border)"}`,
+      borderRadius: 14, padding: "12px 14px",
+      position: "relative",
+      boxShadow: thread.is_mutual ? "0 0 12px rgba(139,92,246,0.15)" : "none",
+    }}>
+      {thread.is_mutual && (
+        <div style={{
+          position: "absolute", top: 8, right: 8,
+          fontSize: 8, fontWeight: 700, color: "#a78bfa",
+          background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.3)",
+          borderRadius: 5, padding: "1px 5px",
+        }}>
+          ✦ Взаимная
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: thread.signal ? 8 : 0 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", wordBreak: "break-word" }}>
+            {thread.to_alias}
+          </div>
+          <div style={{ fontSize: 10, color: "var(--text2)", display: "flex", gap: 8, marginTop: 2 }}>
+            <span style={{ color: compatColor }}>{thread.compatibility}% связь</span>
+            <span>·</span>
+            <span>{daysLeft} {daysLeft === 1 ? "день" : "дн"}</span>
+          </div>
+        </div>
+        <button
+          onClick={() => onDelete(thread.to_id)}
+          style={{
+            flexShrink: 0, padding: "4px 8px", borderRadius: 8,
+            background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
+            color: "#f87171", fontSize: 10, cursor: "pointer",
+          }}
+        >
+          Оборвать
+        </button>
+      </div>
+      {thread.signal && (
+        <div style={{
+          fontSize: 11, color: "var(--text2)", fontStyle: "italic",
+          background: "var(--bg3)", borderRadius: 8, padding: "6px 10px",
+        }}>
+          «{thread.signal}»
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Основной компонент ───────────────────────────────────────
 export default function Community({ state, showToast }) {
   const { user, canAccess } = state;
 
   const activeTier = getActiveTier(user);
-  // getUserId() всегда возвращает реальный Telegram ID (или стабильный браузерный UUID)
-  // user.telegram_id в стейте может быть null, поэтому используем SDK напрямую
   const myUserId   = getUserId();
   const myAlias    = getMysticalAlias(myUserId, user.sun_sign, activeTier);
   const pulse      = getCollectivePulse();
   const question   = getWeekQuestion();
+  const darkMoon   = isDarkMoon();
 
-  // Лента
+  // ── Лента ────────────────────────────────────────────────
   const [feedType,  setFeedType]  = useState("all");
   const [posts,     setPosts]     = useState([]);
   const [loading,   setLoading]   = useState(false);
   const [page,      setPage]      = useState(0);
   const [hasMore,   setHasMore]   = useState(true);
-  const [initialized, setInit]    = useState(false);
 
-  // Создание поста
+  // ── Создание поста ────────────────────────────────────────
   const [showCreate,    setShowCreate]    = useState(false);
   const [createType,    setCreateType]    = useState("reflection");
   const [createText,    setCreateText]    = useState("");
   const [createLoading, setCreateLoading] = useState(false);
 
+  // ── Нити Судьбы ───────────────────────────────────────────
+  const [showThreads,  setShowThreads]  = useState(false);
+  const [myThreads,    setMyThreads]    = useState({ outgoing: [], incoming: [] });
+  const [souls,        setSouls]        = useState([]);
+  const [threadsLoading, setThreadsLoading] = useState(false);
+  const [connectTarget, setConnectTarget] = useState(null); // душа для нити
+  const [threadSignal,  setThreadSignal]  = useState("");
+  const [connectLoading, setConnectLoading] = useState(false);
+
   const loadingRef = useRef(false);
 
-  // Загрузка ленты
+  // ── Загрузка ленты ────────────────────────────────────────
   const loadPosts = useCallback(async (type, pageNum, append = false) => {
     if (loadingRef.current) return;
     loadingRef.current = true;
@@ -245,7 +462,6 @@ export default function Community({ state, showToast }) {
 
   useEffect(() => {
     loadPosts("all", 0, false);
-    setInit(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTypeChange = (type) => {
@@ -258,26 +474,22 @@ export default function Community({ state, showToast }) {
   };
 
   const handleLoadMore = () => {
-    if (!loading && hasMore) {
-      loadPosts(feedType, page + 1, true);
-    }
+    if (!loading && hasMore) loadPosts(feedType, page + 1, true);
   };
 
-  // Реакция на пост
+  // ── Реакция на пост ───────────────────────────────────────
   const handleReact = async (postId, reaction) => {
     const res = await reactToPost(postId, reaction);
     if (!res) { showToast("⚠️ Не удалось отреагировать"); return; }
 
     setPosts(prev => prev.map(p => {
       if (p.id !== postId) return p;
-      const next = { ...p };
+      const next  = { ...p };
       const field = `${reaction}_count`;
-
       if (res.toggled === "off") {
         next[field] = Math.max(0, (next[field] || 0) - 1);
         next.my_reaction = null;
       } else {
-        // Если была другая реакция — убираем старую
         if (next.my_reaction && next.my_reaction !== reaction) {
           const oldField = `${next.my_reaction}_count`;
           next[oldField] = Math.max(0, (next[oldField] || 0) - 1);
@@ -294,7 +506,7 @@ export default function Community({ state, showToast }) {
     }
   };
 
-  // Публикация поста
+  // ── Публикация поста ──────────────────────────────────────
   const handleCreate = async () => {
     if (createText.trim().length < 10) { showToast("Минимум 10 символов"); return; }
     if (createLoading) return;
@@ -303,19 +515,65 @@ export default function Community({ state, showToast }) {
     const res = await createPost(createType, createText.trim());
     setCreateLoading(false);
 
-    if (res.error) {
-      showToast("❌ " + res.error);
-      return;
-    }
+    if (res.error) { showToast("❌ " + res.error); return; }
 
-    // Добавляем новый пост в начало ленты (если текущий фильтр совпадает)
     if (feedType === "all" || feedType === createType) {
       setPosts(prev => [{ ...res.post, my_reaction: null }, ...prev]);
     }
-
     setCreateText("");
     setShowCreate(false);
     showToast("✨ Опубликовано! Мир слышит тебя");
+  };
+
+  // ── Нити Судьбы: открыть панель ──────────────────────────
+  const openThreads = async () => {
+    setShowThreads(true);
+    setThreadsLoading(true);
+    const [threadsData, soulsData] = await Promise.all([
+      fetchMyThreads(),
+      discoverSouls(),
+    ]);
+    if (threadsData) setMyThreads(threadsData);
+    if (soulsData)   setSouls(soulsData.souls || []);
+    setThreadsLoading(false);
+  };
+
+  // ── Нити Судьбы: протянуть нить ──────────────────────────
+  const handleConnect = async (soul) => {
+    setConnectTarget(soul);
+    setThreadSignal("");
+  };
+
+  const handleConfirmConnect = async () => {
+    if (!connectTarget || connectLoading) return;
+    setConnectLoading(true);
+    const res = await createThread(connectTarget.telegram_id, threadSignal);
+    setConnectLoading(false);
+
+    if (res.error) { showToast("❌ " + res.error); return; }
+
+    setConnectTarget(null);
+    // Обновляем список нитей
+    const threadsData = await fetchMyThreads();
+    if (threadsData) setMyThreads(threadsData);
+    // Убираем из списка доступных душ
+    setSouls(prev => prev.filter(s => s.telegram_id !== connectTarget.telegram_id));
+
+    if (res.is_mutual) {
+      showToast("✦ Взаимная нить! Вы уже соединены");
+    } else {
+      showToast(`🔗 Нить протянута (${res.compatibility}% совместимость)`);
+    }
+  };
+
+  // ── Нити Судьбы: оборвать ────────────────────────────────
+  const handleDeleteThread = async (toId) => {
+    await deleteThread(toId);
+    setMyThreads(prev => ({
+      ...prev,
+      outgoing: prev.outgoing.filter(t => String(t.to_id) !== String(toId)),
+    }));
+    showToast("🌑 Нить оборвана");
   };
 
   const tierColor = activeTier === "premium" ? "var(--gold2)" : activeTier === "vip" ? "var(--accent)" : "var(--text2)";
@@ -363,6 +621,71 @@ export default function Community({ state, showToast }) {
           </div>
         </div>
 
+        {/* ── Лунный виджет ────────────────────────────────── */}
+        <MoonWidget />
+
+        {/* ── Тёмная Луна: пространство тайн ──────────────── */}
+        {darkMoon && (
+          <div style={{
+            background: "linear-gradient(135deg, rgba(99,102,241,0.18), rgba(139,92,246,0.08))",
+            border: "1px solid rgba(139,92,246,0.5)",
+            borderRadius: 16, padding: "14px 16px",
+            boxShadow: "0 0 20px rgba(99,102,241,0.2)",
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#c4b5fd", marginBottom: 6 }}>
+              🌑 Пространство Тёмной Луны
+            </div>
+            <div style={{ fontSize: 11, color: "var(--text2)", lineHeight: 1.6, marginBottom: 10 }}>
+              Сейчас время тёмных признаний. Всё, что ты напишешь здесь — исчезнет через 48 часов. Никаких следов.
+            </div>
+            <Btn
+              size="sm"
+              onClick={() => {
+                setCreateType("confession");
+                setCreateText("");
+                setShowCreate(true);
+              }}
+              style={{
+                background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+                border: "none",
+              }}
+            >
+              🌑 Открыть тёмное зеркало
+            </Btn>
+          </div>
+        )}
+
+        {/* ── Нити Судьбы ──────────────────────────────────── */}
+        <div
+          onClick={openThreads}
+          style={{
+            background: "linear-gradient(135deg, rgba(139,92,246,0.1), rgba(99,102,241,0.05))",
+            border: "1px solid rgba(139,92,246,0.3)",
+            borderRadius: 16, padding: "13px 16px",
+            cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
+          }}
+        >
+          <div style={{ fontSize: 28, lineHeight: 1 }}>🕸️</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 2 }}>
+              Нити Судьбы
+            </div>
+            <div style={{ fontSize: 10, color: "var(--text2)" }}>
+              Анонимные кармические связи · до 5 нитей
+            </div>
+          </div>
+          {myThreads.outgoing.length > 0 && (
+            <div style={{
+              fontSize: 11, fontWeight: 700, color: "#a78bfa",
+              background: "rgba(139,92,246,0.15)", borderRadius: 10,
+              padding: "3px 8px",
+            }}>
+              {myThreads.outgoing.length}
+            </div>
+          )}
+          <div style={{ fontSize: 16, color: "var(--text2)" }}>›</div>
+        </div>
+
         {/* ── Коллективный пульс ───────────────────────────── */}
         <SLabel>🫀 Пульс сообщества</SLabel>
         <div style={{
@@ -386,7 +709,6 @@ export default function Community({ state, showToast }) {
               {pulse.energy}%
             </div>
           </div>
-          {/* Полоса пульса */}
           <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 20, height: 5, overflow: "hidden" }}>
             <div style={{
               height: "100%", borderRadius: 20,
@@ -477,8 +799,6 @@ export default function Community({ state, showToast }) {
                 isOwn={post.alias === myAlias}
               />
             ))}
-
-            {/* Загрузить ещё */}
             {hasMore && (
               <button
                 onClick={handleLoadMore}
@@ -499,7 +819,9 @@ export default function Community({ state, showToast }) {
         <div style={{ height: 8 }} />
       </div>
 
-      {/* ── Модальное окно: создание поста ───────────────────── */}
+      {/* ══════════════════════════════════════════════════════
+          Модальное окно: создание поста
+      ══════════════════════════════════════════════════════ */}
       <Modal
         open={showCreate}
         onClose={() => { if (!createLoading) setShowCreate(false); }}
@@ -552,6 +874,7 @@ export default function Community({ state, showToast }) {
             border: "1px solid rgba(239,68,68,0.15)", borderRadius: 9, padding: "7px 10px", marginBottom: 10,
           }}>
             🖤 Признание публикуется анонимно — никто не узнает, кто ты
+            {darkMoon && <> · 🌑 <b style={{ color: "#a5b4fc" }}>Тёмная Луна усиливает твои слова</b></>}
           </div>
         )}
 
@@ -588,28 +911,175 @@ export default function Community({ state, showToast }) {
           onBlur={e => e.target.style.borderColor = "var(--border)"}
         />
         <div style={{
-          fontSize: 10, color: createText.length > 450 ? (createText.length === 500 ? "#f87171" : "#fbbf24") : "var(--text2)",
+          fontSize: 10,
+          color: createText.length > 450 ? (createText.length === 500 ? "#f87171" : "#fbbf24") : "var(--text2)",
           textAlign: "right", marginBottom: 12, marginTop: 4,
         }}>
           {createText.length} / 500
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
-          <Btn
-            variant="ghost" size="sm" style={{ flex: 1 }}
-            onClick={() => setShowCreate(false)}
-            disabled={createLoading}
-          >
+          <Btn variant="ghost" size="sm" style={{ flex: 1 }}
+            onClick={() => setShowCreate(false)} disabled={createLoading}>
             Отмена
           </Btn>
-          <Btn
-            size="sm" style={{ flex: 2 }}
+          <Btn size="sm" style={{ flex: 2 }}
             onClick={handleCreate}
-            disabled={createText.trim().length < 10 || createLoading}
-          >
+            disabled={createText.trim().length < 10 || createLoading}>
             {createLoading ? "Публикуем…" : "✦ Отправить в мир"}
           </Btn>
         </div>
+      </Modal>
+
+      {/* ══════════════════════════════════════════════════════
+          Модальное окно: Нити Судьбы
+      ══════════════════════════════════════════════════════ */}
+      <Modal
+        open={showThreads}
+        onClose={() => setShowThreads(false)}
+        title="🕸️ Нити Судьбы"
+      >
+        {threadsLoading ? (
+          <div style={{ textAlign: "center", padding: "30px 0", color: "var(--text2)" }}>
+            <div style={{ fontSize: 28, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }}>🕸️</div>
+            <div style={{ fontSize: 12 }}>Ищем кармические связи…</div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+            {/* Активные нити */}
+            {myThreads.outgoing.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Твои нити ({myThreads.outgoing.length}/5)
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {myThreads.outgoing.map(t => (
+                    <ThreadCard key={t.id} thread={t} onDelete={handleDeleteThread} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Входящие нити */}
+            {myThreads.incoming.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  К тебе тянутся
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {myThreads.incoming.map(t => (
+                    <div key={t.id} style={{
+                      background: "var(--card)", border: "1px solid var(--border)",
+                      borderRadius: 14, padding: "12px 14px",
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>{t.from_alias}</div>
+                      <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 2 }}>
+                        {t.compatibility}% совместимость
+                        {t.is_mutual && <span style={{ color: "#a78bfa", marginLeft: 6 }}>✦ Взаимная</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Совместимые души */}
+            {myThreads.outgoing.length < 5 && souls.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Кармически близкие души
+                </div>
+                <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 10, lineHeight: 1.5 }}>
+                  Пользователи с высокой астрологической совместимостью
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {souls.map(soul => (
+                    <SoulCard
+                      key={soul.telegram_id}
+                      soul={soul}
+                      onConnect={handleConnect}
+                      loading={connectLoading}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {myThreads.outgoing.length === 0 && souls.length === 0 && (
+              <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text2)" }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>🌑</div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>Пока нет подходящих душ</div>
+                <div style={{ fontSize: 11, marginTop: 4 }}>Возвращайся позже — мир расширяется</div>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* ══════════════════════════════════════════════════════
+          Модальное окно: подтверждение нити + сигнал
+      ══════════════════════════════════════════════════════ */}
+      <Modal
+        open={!!connectTarget}
+        onClose={() => { if (!connectLoading) setConnectTarget(null); }}
+        title="🔗 Протянуть нить"
+      >
+        {connectTarget && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{
+              background: "var(--bg3)", borderRadius: 12, padding: "12px 14px",
+              display: "flex", alignItems: "center", gap: 10,
+            }}>
+              <div style={{ fontSize: 24 }}>{TIER_ICONS[connectTarget.tier] || "🌙"}</div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{connectTarget.alias}</div>
+                <div style={{ fontSize: 10, color: "var(--text2)" }}>
+                  {connectTarget.sign} · {connectTarget.compatibility}% совместимость
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 6 }}>
+                Анонимное послание (необязательно, до 100 символов):
+              </div>
+              <textarea
+                value={threadSignal}
+                onChange={e => setThreadSignal(e.target.value.slice(0, 100))}
+                placeholder="Слово во Вселенную…"
+                disabled={connectLoading}
+                style={{
+                  width: "100%", minHeight: 70, padding: "10px 12px",
+                  borderRadius: 10, background: "var(--bg3)",
+                  border: "1px solid var(--border)", color: "var(--text)",
+                  fontSize: 13, resize: "none", outline: "none",
+                  fontFamily: "inherit", boxSizing: "border-box",
+                }}
+                onFocus={e => e.target.style.borderColor = "rgba(139,92,246,0.5)"}
+                onBlur={e => e.target.style.borderColor = "var(--border)"}
+              />
+              <div style={{ fontSize: 9, color: "var(--text2)", textAlign: "right", marginTop: 2 }}>
+                {threadSignal.length} / 100
+              </div>
+            </div>
+
+            <div style={{ fontSize: 10, color: "var(--text2)", lineHeight: 1.5 }}>
+              Нить анонимна — получатель не узнает кто ты. Она исчезнет через 7 дней.
+            </div>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <Btn variant="ghost" size="sm" style={{ flex: 1 }}
+                onClick={() => setConnectTarget(null)} disabled={connectLoading}>
+                Отмена
+              </Btn>
+              <Btn size="sm" style={{ flex: 2 }}
+                onClick={handleConfirmConnect} disabled={connectLoading}>
+                {connectLoading ? "Тянем нить…" : "🔗 Протянуть нить"}
+              </Btn>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
