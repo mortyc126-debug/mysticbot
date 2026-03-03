@@ -1193,6 +1193,13 @@ export function Profile({ state, showToast }) {
       setShowBirthTimeModal(false);
     }
   };
+  // Магазин удачи (трата очков) — открывается кликом по 💫 в хедере
+  const [showLuckShopModal, setShowLuckShopModal] = useState(false);
+  // Покупка очков удачи — открывается кликом на + рядом с балансом
+  const [showBuyLuckModal, setShowBuyLuckModal] = useState(false);
+  // Магазин тарифов — открывается кликом на + рядом с планом
+  const [showPlanModal, setShowPlanModal] = useState(false);
+
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [promoResult, setPromoResult] = useState(null);
@@ -1324,7 +1331,15 @@ export function Profile({ state, showToast }) {
 
   return (
     <div>
-      <AppHeader title="👤 Профиль" luckPoints={user.luck_points} streak={user.streak_days} />
+      <AppHeader
+        title="👤 Профиль"
+        luckPoints={user.luck_points}
+        streak={user.streak_days}
+        userTier={canAccess("premium") ? "premium" : canAccess("vip") ? "vip" : "free"}
+        onLuckClick={() => setShowLuckShopModal(true)}
+        onLuckAddClick={() => setShowBuyLuckModal(true)}
+        onPlanClick={() => setShowPlanModal(true)}
+      />
       <div style={{ padding: "14px 14px 0", display: "flex", flexDirection: "column", gap: 14 }}>
 
         {/* Profile header */}
@@ -1538,103 +1553,24 @@ export function Profile({ state, showToast }) {
           );
         })()}
 
-        {/* Luck shop */}
-        <SLabel>💫 Магазин удачи</SLabel>
-        <Card>
-          <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 10 }}>
-            У тебя: <span style={{ color: "var(--gold2)", fontWeight: 700 }}>{user.luck_points} 💫</span>
-          </div>
-
-          {/* Купить звёзды за реальные деньги */}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              Пополнить звёзды
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {LUCK_PACKAGES.map((pkg) => (
-                <button
-                  key={pkg.id}
-                  disabled={!!paymentLoading}
-                  onClick={() => handleLuckPurchase(pkg.id)}
-                  style={{
-                    flex: 1, padding: "10px 6px", borderRadius: 12, cursor: paymentLoading ? "default" : "pointer",
-                    background: paymentLoading === pkg.id ? "rgba(245,158,11,0.18)" : "rgba(245,158,11,0.08)",
-                    border: "1px solid rgba(245,158,11,0.3)",
-                    display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-                    transition: "all 0.2s", opacity: paymentLoading && paymentLoading !== pkg.id ? 0.5 : 1,
-                  }}
-                >
-                  <span style={{ fontSize: 18 }}>{pkg.emoji}</span>
-                  <span style={{ fontSize: 12, fontWeight: 800, color: "var(--gold2)" }}>
-                    {paymentLoading === pkg.id ? "…" : `${pkg.luck} 💫`}
-                  </span>
-                  <span style={{ fontSize: 10, color: "var(--text2)" }}>{pkg.price}₽</span>
-                </button>
-              ))}
+        {/* Luck shop shortcut — теперь открывается кликом на 💫 в хедере */}
+        <div
+          onClick={() => setShowLuckShopModal(true)}
+          style={{
+            background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)",
+            borderRadius: 14, padding: "12px 16px", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 24 }}>💫</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--gold2)" }}>Магазин удачи</div>
+              <div style={{ fontSize: 11, color: "var(--text2)" }}>У тебя: <b style={{ color: "var(--gold2)" }}>{user.luck_points} 💫</b> — нажми для трат</div>
             </div>
           </div>
-
-          <div style={{ height: 1, background: "var(--border)", marginBottom: 12 }} />
-
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Потратить звёзды
-          </div>
-          {[
-            // Базовые — доступны всем
-            { key: "tarot_extra",    item: "🎴 Доп. гадание Таро",     cost: 10, desc: "1 дополнительный расклад"  },
-            { key: "compatibility",  item: "💕 Совместимость",          cost: 8,  desc: "1 бесплатная проверка"    },
-            { key: "dream",          item: "🌙 Анализ сна",             cost: 12, desc: "Толкование от оракула"    },
-            { key: "event_forecast", item: "🔮 Прогноз на событие",     cost: 15, desc: "Персональный прогноз"     },
-            // VIP функции за очки — для бесплатных пользователей
-            { key: "tarot_three",    item: "🃏 Расклад «Три карты»",    cost: 20, desc: "VIP расклад на 1 раз"     },
-            { key: "runes",          item: "ᚠ Гадание на рунах",        cost: 25, desc: "VIP функция на 1 раз"     },
-            { key: "aura",           item: "✨ Сканирование ауры",       cost: 30, desc: "VIP функция на 1 раз"     },
-            // Премиум функции за очки
-            { key: "natal_chart",    item: "⭐ Натальная карта",         cost: 30, desc: "Премиум расчёт на 1 раз"  },
-            { key: "palmistry",      item: "🖐 Хиромантия (превью)",     cost: 50, desc: "Премиум анализ ладони"    },
-            { key: "aura_deep",      item: "🌌 Аура: глубокий скан",     cost: 60, desc: "Премиум анализ ауры"      },
-          ].map(({ key, item, cost, desc }) => {
-            const canBuy = (user.luck_points || 0) >= cost;
-            const owned  = shopPurchases?.[key] || 0;
-            return (
-              <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 2, display: "flex", alignItems: "center", gap: 6 }}>
-                    {item}
-                    {owned > 0 && (
-                      <span style={{ fontSize: 10, fontWeight: 800, color: "#4ade80", background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6, padding: "1px 6px" }}>
-                        {owned}×
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 10, color: "var(--text2)" }}>{desc}</div>
-                  <div style={{ fontSize: 10, color: canBuy ? "var(--gold2)" : "var(--text2)", fontWeight: 700, marginTop: 2 }}>{cost} 💫</div>
-                </div>
-                <button
-                  onClick={() => {
-                    if (!canBuy) { showToast(`❌ Нужно ${cost} 💫, у тебя ${user.luck_points}`); return; }
-                    const ok = spendLuck(cost);
-                    if (ok) {
-                      addShopPurchase(key);
-                      showToast(`✅ ${item} добавлено! Теперь у тебя ${owned + 1}×`);
-                    } else {
-                      showToast(`❌ Не удалось потратить очки`);
-                    }
-                  }}
-                  style={{
-                    padding: "7px 14px", border: `1px solid ${canBuy ? "rgba(245,158,11,0.4)" : "var(--border)"}`,
-                    borderRadius: 10, background: canBuy ? "rgba(245,158,11,0.1)" : "transparent",
-                    color: canBuy ? "var(--gold2)" : "var(--text2)",
-                    fontSize: 11, fontWeight: 700, cursor: canBuy ? "pointer" : "not-allowed",
-                    transition: "all 0.2s", flexShrink: 0,
-                  }}
-                >
-                  {canBuy ? "Купить" : "Мало 💫"}
-                </button>
-              </div>
-            );
-          })}
-        </Card>
+          <div style={{ fontSize: 14, color: "var(--text2)" }}>→</div>
+        </div>
 
         {/* Промокод */}
         <SLabel>🎁 Промокод</SLabel>
@@ -1889,6 +1825,144 @@ export function Profile({ state, showToast }) {
 
         <div style={{ height: 8 }} />
       </div>
+
+      {/* ── Магазин удачи: трата очков ─────────────────────── */}
+      <Modal open={showLuckShopModal} onClose={() => setShowLuckShopModal(false)} title="💫 Магазин удачи">
+        <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 10 }}>
+          У тебя: <span style={{ color: "var(--gold2)", fontWeight: 700 }}>{user.luck_points} 💫</span> — трать на разовые функции
+        </div>
+        {[
+          { key: "tarot_extra",    item: "🎴 Доп. гадание Таро",     cost: 10, desc: "1 дополнительный расклад"  },
+          { key: "compatibility",  item: "💕 Совместимость",          cost: 8,  desc: "1 бесплатная проверка"    },
+          { key: "dream",          item: "🌙 Анализ сна",             cost: 12, desc: "Толкование от оракула"    },
+          { key: "event_forecast", item: "🔮 Прогноз на событие",     cost: 15, desc: "Персональный прогноз"     },
+          { key: "tarot_three",    item: "🃏 Расклад «Три карты»",    cost: 20, desc: "VIP расклад на 1 раз"     },
+          { key: "runes",          item: "ᚠ Гадание на рунах",        cost: 25, desc: "VIP функция на 1 раз"     },
+          { key: "aura",           item: "✨ Сканирование ауры",       cost: 30, desc: "VIP функция на 1 раз"     },
+          { key: "natal_chart",    item: "⭐ Натальная карта",         cost: 30, desc: "Премиум расчёт на 1 раз"  },
+          { key: "palmistry",      item: "🖐 Хиромантия (превью)",     cost: 50, desc: "Премиум анализ ладони"    },
+          { key: "aura_deep",      item: "🌌 Аура: глубокий скан",     cost: 60, desc: "Премиум анализ ауры"      },
+        ].map(({ key, item, cost, desc }) => {
+          const canBuy = (user.luck_points || 0) >= cost;
+          const owned  = shopPurchases?.[key] || 0;
+          return (
+            <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 2, display: "flex", alignItems: "center", gap: 6 }}>
+                  {item}
+                  {owned > 0 && (
+                    <span style={{ fontSize: 10, fontWeight: 800, color: "#4ade80", background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6, padding: "1px 6px" }}>
+                      {owned}×
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 10, color: "var(--text2)" }}>{desc}</div>
+                <div style={{ fontSize: 10, color: canBuy ? "var(--gold2)" : "var(--text2)", fontWeight: 700, marginTop: 2 }}>{cost} 💫</div>
+              </div>
+              <button
+                onClick={() => {
+                  if (!canBuy) { showToast(`❌ Нужно ${cost} 💫, у тебя ${user.luck_points}`); return; }
+                  const ok = spendLuck(cost);
+                  if (ok) {
+                    addShopPurchase(key);
+                    showToast(`✅ ${item} добавлено! Теперь у тебя ${owned + 1}×`);
+                  } else {
+                    showToast(`❌ Не удалось потратить очки`);
+                  }
+                }}
+                style={{
+                  padding: "7px 14px", border: `1px solid ${canBuy ? "rgba(245,158,11,0.4)" : "var(--border)"}`,
+                  borderRadius: 10, background: canBuy ? "rgba(245,158,11,0.1)" : "transparent",
+                  color: canBuy ? "var(--gold2)" : "var(--text2)",
+                  fontSize: 11, fontWeight: 700, cursor: canBuy ? "pointer" : "not-allowed",
+                  transition: "all 0.2s", flexShrink: 0,
+                }}
+              >
+                {canBuy ? "Купить" : "Мало 💫"}
+              </button>
+            </div>
+          );
+        })}
+        <div style={{ height: 10 }} />
+        <div style={{ fontSize: 11, color: "var(--text2)", textAlign: "center", marginBottom: 12 }}>
+          Нет очков? Пополни — нажми <b style={{ color: "var(--gold2)" }}>+</b> рядом с балансом 💫 вверху
+        </div>
+        <Btn variant="ghost" onClick={() => setShowLuckShopModal(false)}>Закрыть</Btn>
+      </Modal>
+
+      {/* ── Покупка очков удачи ─────────────────────────────── */}
+      <Modal open={showBuyLuckModal} onClose={() => setShowBuyLuckModal(false)} title="💫 Пополнить звёзды">
+        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 14, lineHeight: 1.6 }}>
+          Очки удачи (💫) используются для разовых функций. Выбери пакет:
+        </div>
+        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+          {LUCK_PACKAGES.map((pkg) => (
+            <button
+              key={pkg.id}
+              disabled={!!paymentLoading}
+              onClick={() => handleLuckPurchase(pkg.id)}
+              style={{
+                flex: 1, padding: "14px 8px", borderRadius: 14, cursor: paymentLoading ? "default" : "pointer",
+                background: paymentLoading === pkg.id ? "rgba(245,158,11,0.2)" : "rgba(245,158,11,0.08)",
+                border: "1px solid rgba(245,158,11,0.3)",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
+                transition: "all 0.2s", opacity: paymentLoading && paymentLoading !== pkg.id ? 0.5 : 1,
+              }}
+            >
+              <span style={{ fontSize: 22 }}>{pkg.emoji}</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: "var(--gold2)" }}>
+                {paymentLoading === pkg.id ? "…" : `${pkg.luck} 💫`}
+              </span>
+              <span style={{ fontSize: 12, color: "var(--text2)" }}>{pkg.price}₽</span>
+            </button>
+          ))}
+        </div>
+        <Btn variant="ghost" onClick={() => setShowBuyLuckModal(false)}>Закрыть</Btn>
+      </Modal>
+
+      {/* ── Магазин тарифов — открывается кнопкой + у плана ── */}
+      <Modal open={showPlanModal} onClose={() => setShowPlanModal(false)} title="💎 Выбери тариф">
+        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 14, lineHeight: 1.6 }}>
+          Разблокируй полный доступ к предсказаниям, натальной карте и персональному оракулу
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 14 }}>
+          {tiers.map(t => {
+            const isActive = (t.id === "vip" && canAccess("vip")) || (t.id === "premium" && canAccess("premium"));
+            return (
+              <div key={t.id} style={{
+                background: t.id === "premium" ? "linear-gradient(135deg,#1a0a2e,#0a1628)" : "var(--card)",
+                border: `2px solid ${isActive ? "#4ade80" : t.borderColor}`,
+                borderRadius: 16, padding: 16, position: "relative", overflow: "hidden",
+              }}>
+                {t.id === "premium" && <div style={{ position: "absolute", right: -6, top: -6, fontSize: 50, opacity: 0.08 }}>👑</div>}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: t.color }}>{t.name}</div>
+                  {isActive
+                    ? <span style={{ fontSize: 10, background: "rgba(34,197,94,0.15)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.3)", padding: "2px 8px", borderRadius: 10, fontWeight: 700 }}>АКТИВНА</span>
+                    : <span style={{ fontSize: 15, fontWeight: 900, color: t.color }}>{t.price.split("/")[0]}<span style={{ fontSize: 11, color: "var(--text2)", fontWeight: 400 }}>/{t.price.split("/")[1]}</span></span>
+                  }
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 12 }}>
+                  {t.features.slice(0, 4).map(f => (
+                    <div key={f} style={{ fontSize: 11, color: "var(--text2)", display: "flex", gap: 5, alignItems: "center" }}>
+                      <span style={{ color: t.id === "premium" ? "var(--gold)" : "var(--accent)", fontSize: 8 }}>✦</span>{f}
+                    </div>
+                  ))}
+                </div>
+                <Btn
+                  variant={t.id === "premium" ? "gold" : "primary"}
+                  size="sm"
+                  disabled={!!paymentLoading || isActive}
+                  onClick={() => { handleSubscribe(t.id); setShowPlanModal(false); }}
+                >
+                  {isActive ? "Активна" : paymentLoading === t.id ? "Открываем…" : `Подключить ${t.id === "premium" ? "Премиум" : "VIP"}`}
+                </Btn>
+              </div>
+            );
+          })}
+        </div>
+        <Btn variant="ghost" onClick={() => setShowPlanModal(false)}>Закрыть</Btn>
+      </Modal>
 
       {/* Promo Code Modal */}
       <Modal open={showPromoModal} onClose={() => { setShowPromoModal(false); setPromoResult(null); }} title="🎁 Активация промокода">

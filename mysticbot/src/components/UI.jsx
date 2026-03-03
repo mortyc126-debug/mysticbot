@@ -100,23 +100,90 @@ export function SLabel({ children }) {
 }
 
 // --- App Header ---
-export function AppHeader({ title, luckPoints, streak }) {
+// onLuckClick     — клик по баллам удачи → открывает магазин трат
+// onLuckAddClick  — клик на «+» рядом с балансом → открывает покупку очков
+// userTier        — "free" | "vip" | "premium" (показывает бейдж плана)
+// onPlanClick     — клик по бейджу плана → открывает магазин тарифов
+export function AppHeader({ title, luckPoints, streak, onLuckClick, onLuckAddClick, userTier, onPlanClick }) {
+  const tierLabels = { free: "Free", vip: "VIP", premium: "Premium" };
+  const tierColors = {
+    free:    { bg: "rgba(100,100,120,0.15)", border: "rgba(100,100,120,0.3)", color: "var(--text2)" },
+    vip:     { bg: "rgba(139,92,246,0.12)",  border: "rgba(139,92,246,0.3)", color: "#a78bfa" },
+    premium: { bg: "rgba(245,158,11,0.12)",  border: "rgba(245,158,11,0.3)", color: "#fbbf24" },
+  };
+  const tc = tierColors[userTier] || tierColors.free;
+
   return (
     <div style={{
       position: "sticky", top: 0, zIndex: 50,
       background: "rgba(10,10,15,0.93)", backdropFilter: "blur(16px)",
-      padding: "14px 16px 10px",
+      padding: "12px 16px 10px",
       borderBottom: "1px solid var(--border)",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
         <div style={{ fontSize: 19, fontWeight: 800, background: "linear-gradient(135deg,#8b5cf6,#f59e0b)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
           {title}
         </div>
-        <div style={{
-          display: "flex", alignItems: "center", gap: 5,
-          background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)",
-          borderRadius: 18, padding: "4px 10px", fontSize: 12, fontWeight: 700, color: "var(--gold2)", cursor: "pointer",
-        }}>💫 {luckPoints} удачи</div>
+
+        {/* Правый блок: план + удача */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+
+          {/* Бейдж плана с кнопкой + */}
+          {userTier && (
+            <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+              <div
+                onClick={onPlanClick}
+                style={{
+                  display: "flex", alignItems: "center", gap: 4,
+                  background: tc.bg, border: `1px solid ${tc.border}`,
+                  borderRadius: onPlanClick ? "9px 0 0 9px" : 9,
+                  padding: "4px 8px", fontSize: 11, fontWeight: 700, color: tc.color,
+                  cursor: onPlanClick ? "pointer" : "default",
+                  borderRight: onPlanClick ? "none" : `1px solid ${tc.border}`,
+                }}
+              >
+                {userTier === "premium" ? "👑" : userTier === "vip" ? "⭐" : "🌙"} {tierLabels[userTier] || "Free"}
+              </div>
+              {onPlanClick && (
+                <div
+                  onClick={onPlanClick}
+                  style={{
+                    background: tc.bg, border: `1px solid ${tc.border}`, borderLeft: "none",
+                    borderRadius: "0 9px 9px 0",
+                    padding: "4px 7px", fontSize: 13, fontWeight: 700, color: tc.color,
+                    cursor: "pointer", lineHeight: 1,
+                  }}
+                >+</div>
+              )}
+            </div>
+          )}
+
+          {/* Баланс удачи с кнопкой + */}
+          <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+            <div
+              onClick={onLuckClick}
+              style={{
+                display: "flex", alignItems: "center", gap: 4,
+                background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)",
+                borderRadius: onLuckAddClick ? "9px 0 0 9px" : 9,
+                padding: "4px 9px", fontSize: 12, fontWeight: 700, color: "var(--gold2)",
+                cursor: onLuckClick ? "pointer" : "default",
+                borderRight: onLuckAddClick ? "none" : "1px solid rgba(245,158,11,0.25)",
+              }}
+            >💫 {luckPoints}</div>
+            {onLuckAddClick && (
+              <div
+                onClick={onLuckAddClick}
+                style={{
+                  background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)",
+                  borderLeft: "none", borderRadius: "0 9px 9px 0",
+                  padding: "4px 7px", fontSize: 13, fontWeight: 700, color: "var(--gold2)",
+                  cursor: "pointer", lineHeight: 1,
+                }}
+              >+</div>
+            )}
+          </div>
+        </div>
       </div>
       {streak > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--text2)" }}>
