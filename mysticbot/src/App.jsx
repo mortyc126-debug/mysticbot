@@ -39,6 +39,7 @@ export default function App() {
   const state = useAppState();
   const { onboarding, currentPage, setCurrentPage, checkStreak } = state;
   const [toast, setToast] = useState(null);
+  const [unreadChats, setUnreadChats] = useState(0);
   // Отслеживаем предыдущее значение onboarding, чтобы активировать реферал
   // ТОЛЬКО при переходе new-user→registered, а не у уже зарегистрированных.
   const prevOnboardingRef = useRef(onboarding);
@@ -172,6 +173,8 @@ export default function App() {
 
   const PageComponent = PAGES[currentPage] || Home;
   const isNavPage = !!NAV_PAGES[currentPage];
+  // Инжектируем setUnreadChats в стейт, чтобы Community мог обновлять бейдж в BottomNav
+  const pageState = { ...state, setUnreadChats };
 
   return (
     <ErrorBoundary>
@@ -181,11 +184,17 @@ export default function App() {
           {/* key={currentPage} запускает анимацию pageEnter при смене страницы */}
           <div key={currentPage} style={styles.pageAnimWrap}>
             <ErrorBoundary>
-              <PageComponent state={state} showToast={showToast} />
+              <PageComponent state={pageState} showToast={showToast} />
             </ErrorBoundary>
           </div>
         </div>
-        {isNavPage && <BottomNav currentPage={currentPage} setCurrentPage={setCurrentPage} />}
+        {isNavPage && (
+          <BottomNav
+            currentPage={currentPage}
+            setCurrentPage={setCurrentPage}
+            badges={{ community: unreadChats }}
+          />
+        )}
         {toast && <LuckToast message={toast} />}
       </div>
     </ErrorBoundary>

@@ -97,6 +97,27 @@ export async function fetchChatMessages(withId, after = null) {
 }
 
 /**
+ * Кол-во непрочитанных сообщений во всех чатах.
+ * @param {string} after — ISO-дата: считать только сообщения после этого момента
+ */
+export async function fetchUnreadCount(after = null) {
+  try {
+    const q = { unread: "1" };
+    if (after) q.after = after;
+    const res = await fetch(`/api/threads?${new URLSearchParams(q)}`, {
+      method:  "GET",
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) return 0;
+    const json = await res.json();
+    return json.count || 0;
+  } catch (e) {
+    console.warn("[Chat] fetchUnreadCount:", e.message);
+    return 0;
+  }
+}
+
+/**
  * Отправить сообщение в анонимный чат.
  * @param {string|number} toId — telegram_id получателя
  * @param {string}        text — текст (1–500 символов)
