@@ -9,11 +9,13 @@ import { AppHeader, Modal, Btn, SLabel } from "../components/UI";
 import { getMysticalAlias, getActiveTier, TIER_ICONS, TIER_LABELS } from "../hooks/alias";
 import { fetchPosts, createPost, reactToPost }              from "../api/posts";
 import { fetchMyThreads, discoverSouls, createThread, deleteThread } from "../api/threads";
+import { fetchRitual, joinRitual }                          from "../api/ritual";
 import { getUserId } from "../api/backend";
 import {
   getLunarPhase, getMoonEmoji, getMoonPhaseName,
   getMoonEnergyDesc, isDarkMoon, daysUntilNewMoon,
 } from "../hooks/moon";
+import { getCircleMeta, getElement, getDailyCircleMood, ELEMENT_META } from "../hooks/circle";
 
 // ── Вопросы дня (ротация по ISO-неделе) ─────────────────────
 const DAILY_QUESTIONS = [
@@ -407,6 +409,31 @@ function ThreadCard({ thread, onDelete }) {
   );
 }
 
+// ── Ритуалы дня (14 уникальных, ротация по дню года) ────────
+const DAILY_RITUALS = [
+  { icon: "🕯️", name: "Ритуал Намерения",   action: "Зажги свечу и произнеси своё намерение вслух трижды. Пусть мир услышит.",         element: "fire"  },
+  { icon: "🌿", name: "Ритуал Земли",         action: "Возьми в руки что-то природное — камень, ветку, землю. Почувствуй связь с Землёй.", element: "earth" },
+  { icon: "💨", name: "Ритуал Дыхания",       action: "Сделай 7 глубоких вдохов. С каждым выдохом отпускай один страх или тревогу.",      element: "air"   },
+  { icon: "💧", name: "Ритуал Воды",           action: "Выпей стакан воды осознанно, представляя как она очищает и наполняет тебя силой.", element: "water" },
+  { icon: "🔮", name: "Ритуал Зеркала",       action: "Посмотри в зеркало и скажи себе одну истину, которую боишься признать.",           element: null    },
+  { icon: "🌙", name: "Ритуал Луны",           action: "Запиши одно желание на бумаге. Сожги его мысленно — отпусти в лунный свет.",       element: null    },
+  { icon: "⚡", name: "Ритуал Молнии",         action: "Закрой глаза. Представь молнию, разрубающую всё лишнее в твоей жизни.",            element: "fire"  },
+  { icon: "🌸", name: "Ритуал Принятия",      action: "Назови три вещи, которые ты принимаешь в себе сегодня без осуждения.",              element: "earth" },
+  { icon: "🌬️", name: "Ритуал Перемен",      action: "Открой окно. Впусти новый воздух — вместе с ним войдёт что-то новое в твою жизнь.", element: "air"   },
+  { icon: "🖤", name: "Ритуал Тени",           action: "Признай одну тёмную мысль — не борись с ней, просто увидь её. Это твоя сила.",     element: "water" },
+  { icon: "✨", name: "Ритуал Звёзд",          action: "Посмотри на ночное небо (или представь его) и найди свою звезду.",                  element: null    },
+  { icon: "🗝️", name: "Ритуал Ключа",        action: "Подумай: какую дверь ты откладываешь открыть? Сделай один шаг к ней сегодня.",      element: null    },
+  { icon: "🔥", name: "Ритуал Трансформации", action: "Запиши то, от чего хочешь избавиться. Представь как огонь превращает это в пепел.", element: "fire"  },
+  { icon: "🌊", name: "Ритуал Потока",         action: "Позволь себе 5 минут полного бездействия. Просто будь. Без целей и задач.",         element: "water" },
+];
+
+function getTodayRitual() {
+  const dayOfYear = Math.floor(
+    (Date.now() - new Date(new Date().getFullYear(), 0, 0)) / (24 * 60 * 60 * 1000)
+  );
+  return DAILY_RITUALS[dayOfYear % DAILY_RITUALS.length];
+}
+
 // ── Основной компонент ───────────────────────────────────────
 export default function Community({ state, showToast }) {
   const { user, canAccess } = state;
@@ -417,13 +444,17 @@ export default function Community({ state, showToast }) {
   const pulse      = getCollectivePulse();
   const question   = getWeekQuestion();
   const darkMoon   = isDarkMoon();
+  const myElement  = getElement(user.sun_sign);
+  const myCircle   = getCircleMeta(user.sun_sign);
+  const circleMood = getDailyCircleMood(myElement);
 
   // ── Лента ────────────────────────────────────────────────
-  const [feedType,  setFeedType]  = useState("all");
-  const [posts,     setPosts]     = useState([]);
-  const [loading,   setLoading]   = useState(false);
-  const [page,      setPage]      = useState(0);
-  const [hasMore,   setHasMore]   = useState(true);
+  const [feedType,    setFeedType]    = useState("all");
+  const [feedCircle,  setFeedCircle]  = useState(null); // null = все стихии
+  const [posts,       setPosts]       = useState([]);
+  const [loading,     setLoading]     = useState(false);
+  const [page,        setPage]        = useState(0);
+  const [hasMore,     setHasMore]     = useState(true);
 
   // ── Создание поста ────────────────────────────────────────
   const [showCreate,    setShowCreate]    = useState(false);
@@ -436,19 +467,23 @@ export default function Community({ state, showToast }) {
   const [myThreads,    setMyThreads]    = useState({ outgoing: [], incoming: [] });
   const [souls,        setSouls]        = useState([]);
   const [threadsLoading, setThreadsLoading] = useState(false);
-  const [connectTarget, setConnectTarget] = useState(null); // душа для нити
+  const [connectTarget, setConnectTarget] = useState(null);
   const [threadSignal,  setThreadSignal]  = useState("");
   const [connectLoading, setConnectLoading] = useState(false);
+
+  // ── Ритуал дня ────────────────────────────────────────────
+  const [ritual,        setRitual]        = useState(null);   // { total_count, participated }
+  const [ritualJoining, setRitualJoining] = useState(false);
 
   const loadingRef = useRef(false);
 
   // ── Загрузка ленты ────────────────────────────────────────
-  const loadPosts = useCallback(async (type, pageNum, append = false) => {
+  const loadPosts = useCallback(async (type, pageNum, circle, append = false) => {
     if (loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
     try {
-      const res = await fetchPosts(type, pageNum);
+      const res = await fetchPosts(type, pageNum, circle);
       if (res && res.posts) {
         setPosts(prev => append ? [...prev, ...res.posts] : res.posts);
         setHasMore(res.has_more);
@@ -461,7 +496,8 @@ export default function Community({ state, showToast }) {
   }, []);
 
   useEffect(() => {
-    loadPosts("all", 0, false);
+    loadPosts("all", 0, null, false);
+    fetchRitual().then(r => { if (r) setRitual(r); });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTypeChange = (type) => {
@@ -470,11 +506,20 @@ export default function Community({ state, showToast }) {
     setPosts([]);
     setPage(0);
     setHasMore(true);
-    loadPosts(type, 0, false);
+    loadPosts(type, 0, feedCircle, false);
+  };
+
+  const handleCircleFilter = (circle) => {
+    const next = feedCircle === circle ? null : circle;
+    setFeedCircle(next);
+    setPosts([]);
+    setPage(0);
+    setHasMore(true);
+    loadPosts(feedType, 0, next, false);
   };
 
   const handleLoadMore = () => {
-    if (!loading && hasMore) loadPosts(feedType, page + 1, true);
+    if (!loading && hasMore) loadPosts(feedType, page + 1, feedCircle, true);
   };
 
   // ── Реакция на пост ───────────────────────────────────────
@@ -523,6 +568,17 @@ export default function Community({ state, showToast }) {
     setCreateText("");
     setShowCreate(false);
     showToast("✨ Опубликовано! Мир слышит тебя");
+  };
+
+  // ── Ритуал дня: присоединиться ───────────────────────────
+  const handleJoinRitual = async () => {
+    if (ritual?.participated || ritualJoining) return;
+    setRitualJoining(true);
+    const res = await joinRitual();
+    setRitualJoining(false);
+    if (res.error) { showToast("❌ " + res.error); return; }
+    setRitual(prev => ({ ...prev, participated: true, total_count: res.total_count }));
+    showToast("🕯️ Ты в круге ритуала!");
   };
 
   // ── Нити Судьбы: открыть панель ──────────────────────────
@@ -738,6 +794,125 @@ export default function Community({ state, showToast }) {
           </Btn>
         </div>
 
+        {/* ── Твой Круг (стихия) ───────────────────────────── */}
+        {myCircle && (
+          <>
+            <SLabel>{myCircle.icon} Твой Круг</SLabel>
+            <div style={{
+              background: myCircle.bg,
+              border: `1px solid ${myCircle.border}`,
+              borderRadius: 16, padding: "14px 16px",
+            }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: "50%", flexShrink: 0,
+                  background: `radial-gradient(circle, ${myCircle.color}30, ${myCircle.color}08)`,
+                  border: `1.5px solid ${myCircle.color}50`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 24,
+                }}>
+                  {myCircle.icon}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: myCircle.color, marginBottom: 2 }}>
+                    {myCircle.name}
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--text2)", lineHeight: 1.5, marginBottom: 6 }}>
+                    {myCircle.desc}
+                  </div>
+                  <div style={{ fontSize: 10, color: myCircle.color, fontWeight: 600, marginBottom: 8 }}>
+                    ✦ {circleMood}
+                  </div>
+                  {/* Знаки круга */}
+                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10 }}>
+                    {myCircle.signs.map(sign => (
+                      <span key={sign} style={{
+                        fontSize: 10, padding: "2px 8px", borderRadius: 10,
+                        background: `${myCircle.color}18`,
+                        border: `1px solid ${myCircle.color}35`,
+                        color: myCircle.color, fontWeight: 600,
+                      }}>
+                        {sign}
+                      </span>
+                    ))}
+                  </div>
+                  {/* Фильтр по кругу */}
+                  <button
+                    onClick={() => handleCircleFilter(myElement)}
+                    style={{
+                      padding: "6px 14px", borderRadius: 10, fontSize: 11, fontWeight: 700,
+                      background: feedCircle === myElement ? myCircle.color : "transparent",
+                      border: `1px solid ${myCircle.color}`,
+                      color: feedCircle === myElement ? "white" : myCircle.color,
+                      cursor: "pointer", transition: "all 0.2s",
+                    }}
+                  >
+                    {feedCircle === myElement ? "✓ Фильтр включён" : "Показать посты круга"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── Ритуал дня ───────────────────────────────────── */}
+        {(() => {
+          const todayRitual = getTodayRitual();
+          const participated = ritual?.participated;
+          const count = ritual?.total_count ?? 0;
+          const ritualEl = todayRitual.element ? ELEMENT_META[todayRitual.element] : null;
+          const ritualColor = ritualEl?.color || "#8b5cf6";
+          return (
+            <>
+              <SLabel>🕯️ Ритуал дня</SLabel>
+              <div style={{
+                background: `linear-gradient(135deg, ${ritualColor}12, ${ritualColor}04)`,
+                border: `1px solid ${participated ? ritualColor + "60" : ritualColor + "25"}`,
+                borderRadius: 16, padding: "14px 16px",
+                boxShadow: participated ? `0 0 16px ${ritualColor}20` : "none",
+                transition: "all 0.4s",
+              }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ fontSize: 32, lineHeight: 1, flexShrink: 0, filter: participated ? `drop-shadow(0 0 8px ${ritualColor}80)` : "none" }}>
+                    {todayRitual.icon}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 4 }}>
+                      {todayRitual.name}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.6, marginBottom: 10 }}>
+                      {todayRitual.action}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <button
+                        onClick={handleJoinRitual}
+                        disabled={participated || ritualJoining}
+                        style={{
+                          padding: "7px 16px", borderRadius: 10, fontSize: 12, fontWeight: 700,
+                          background: participated
+                            ? `${ritualColor}25`
+                            : `linear-gradient(135deg, ${ritualColor}, ${ritualColor}cc)`,
+                          border: `1px solid ${ritualColor}60`,
+                          color: participated ? ritualColor : "white",
+                          cursor: participated ? "default" : "pointer",
+                          transition: "all 0.3s",
+                        }}
+                      >
+                        {participated ? "✓ Участвую" : ritualJoining ? "…" : "Провести ритуал"}
+                      </button>
+                      {count > 0 && (
+                        <div style={{ fontSize: 11, color: "var(--text2)" }}>
+                          <span style={{ fontWeight: 700, color: ritualColor }}>{count}</span> {count === 1 ? "душа" : count < 5 ? "души" : "душ"}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          );
+        })()}
+
         {/* ── Фильтр типов + кнопка создания ──────────────── */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <SLabel>📜 Лента сообщества</SLabel>
@@ -754,7 +929,43 @@ export default function Community({ state, showToast }) {
           </button>
         </div>
 
-        {/* Скролл фильтров */}
+        {/* Фильтр по стихиям */}
+        <div style={{
+          display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2,
+          scrollbarWidth: "none", msOverflowStyle: "none",
+        }}>
+          <button
+            onClick={() => handleCircleFilter(null)}
+            style={{
+              flexShrink: 0, padding: "5px 12px", borderRadius: 16,
+              background: feedCircle === null ? "rgba(255,255,255,0.1)" : "var(--bg3)",
+              border: `1px solid ${feedCircle === null ? "rgba(255,255,255,0.25)" : "var(--border)"}`,
+              color: feedCircle === null ? "var(--text)" : "var(--text2)",
+              fontSize: 11, fontWeight: feedCircle === null ? 700 : 500,
+              cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap",
+            }}
+          >
+            🌐 Все
+          </button>
+          {Object.values(ELEMENT_META).map(el => (
+            <button
+              key={el.id}
+              onClick={() => handleCircleFilter(el.id)}
+              style={{
+                flexShrink: 0, padding: "5px 12px", borderRadius: 16,
+                background: feedCircle === el.id ? `${el.color}20` : "var(--bg3)",
+                border: `1px solid ${feedCircle === el.id ? el.color : "var(--border)"}`,
+                color: feedCircle === el.id ? el.color : "var(--text2)",
+                fontSize: 11, fontWeight: feedCircle === el.id ? 700 : 500,
+                cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap",
+              }}
+            >
+              {el.icon} {el.name.replace("Круг ", "")}
+            </button>
+          ))}
+        </div>
+
+        {/* Скролл фильтров по типу */}
         <div style={{
           display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4,
           scrollbarWidth: "none", msOverflowStyle: "none",

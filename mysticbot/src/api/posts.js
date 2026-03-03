@@ -13,13 +13,16 @@ function getAuthHeaders() {
 
 /**
  * Загружает ленту постов сообщества.
- * @param {string} type  — "all" | "prophecy" | "ritual" | "reflection" | "confession"
- * @param {number} page  — страница (0-based)
+ * @param {string} type   — "all" | "prophecy" | "ritual" | "reflection" | "confession"
+ * @param {number} page   — страница (0-based)
+ * @param {string} circle — "fire"|"earth"|"air"|"water"|null (фильтр по стихии)
  * @returns {{ posts: Array, page: number, has_more: boolean } | null}
  */
-export async function fetchPosts(type = "all", page = 0) {
+export async function fetchPosts(type = "all", page = 0, circle = null) {
   try {
-    const params = new URLSearchParams({ feed: "1", type, page });
+    const q = { feed: "1", type, page };
+    if (circle) q.circle = circle;
+    const params = new URLSearchParams(q);
     const res    = await fetch(`/api/posts?${params}`, {
       method:  "GET",
       headers: getAuthHeaders(),

@@ -17,6 +17,13 @@ const MIN_TEXT  = 10;
 const VALID_TYPES    = new Set(["prophecy", "ritual", "reflection", "confession"]);
 const VALID_REACTIONS = new Set(["energy", "verified", "disputed"]);
 
+const CIRCLE_SIGNS = {
+  fire:  ["Овен", "Лев", "Стрелец"],
+  earth: ["Телец", "Дева", "Козерог"],
+  air:   ["Близнецы", "Весы", "Водолей"],
+  water: ["Рак", "Скорпион", "Рыбы"],
+};
+
 // ── Детерминированный хэш для номера в псевдониме ───────────
 function simpleHash(str) {
   let h = 0;
@@ -47,10 +54,11 @@ async function handleGet(req, res) {
   const { ok, id } = resolveUserId(req, req.query?.viewer_id || null);
   if (!ok) return res.status(401).json({ error: "Не авторизован" });
 
-  const type = req.query.type || "all";
-  const page = Math.max(0, parseInt(req.query.page, 10) || 0);
-  const from = page * PAGE_SIZE;
-  const to   = from + PAGE_SIZE - 1;
+  const type   = req.query.type   || "all";
+  const circle = req.query.circle || null; // "fire"|"earth"|"air"|"water"
+  const page   = Math.max(0, parseInt(req.query.page, 10) || 0);
+  const from   = page * PAGE_SIZE;
+  const to     = from + PAGE_SIZE - 1;
 
   const db = getSupabase();
 
@@ -63,6 +71,11 @@ async function handleGet(req, res) {
 
     if (type !== "all" && VALID_TYPES.has(type)) {
       query = query.eq("type", type);
+    }
+
+    // Фильтр по кругу стихий: только посты авторов из указанной стихии
+    if (circle && CIRCLE_SIGNS[circle]) {
+      query = query.in("sun_sign", CIRCLE_SIGNS[circle]);
     }
 
     const { data: posts, error } = await query;
