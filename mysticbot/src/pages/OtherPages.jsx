@@ -1465,6 +1465,18 @@ export function Profile({ state, showToast }) {
             </div>
             <div style={{ fontSize: 14, color: "var(--text2)" }}>→</div>
           </div>
+          <div onClick={() => setCurrentPage("diary")} style={{
+            background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.2)",
+            borderRadius: 10, padding: "9px 12px", cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 10, marginTop: 8,
+          }}>
+            <span style={{ fontSize: 22 }}>📔</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 700 }}>Дневник судьбы</div>
+              <div style={{ fontSize: 10, color: "var(--text2)" }}>Записи, сонник, статистика</div>
+            </div>
+            <div style={{ fontSize: 14, color: "var(--text2)" }}>→</div>
+          </div>
         </Card>
 
         {/* Subscription */}
