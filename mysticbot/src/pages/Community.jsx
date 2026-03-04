@@ -1344,7 +1344,6 @@ export default function Community({ state, showToast }) {
       >
         {/* ── Вид чата ── */}
         {activeChat ? (
-          {/* ── Вид чата ── */}
           <div style={{ display: "flex", flexDirection: "column", height: 440 }}>
             {/* Заголовок */}
             <div style={{
