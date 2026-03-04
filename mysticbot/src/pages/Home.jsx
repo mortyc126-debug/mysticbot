@@ -179,7 +179,14 @@ export default function Home({ state, showToast }) {
 
   return (
     <div>
-      <AppHeader title="✦ Мистикум" luckPoints={user.luck_points} streak={user.streak_days} />
+      <AppHeader
+        title="✦ Мистикум"
+        luckPoints={user.luck_points}
+        streak={user.streak_days}
+        userTier={canAccess("premium") ? "premium" : canAccess("vip") ? "vip" : "free"}
+        onLuckAddClick={() => setCurrentPage("profile")}
+        onPlanClick={() => setCurrentPage("profile")}
+      />
       <div style={{ padding: "14px 14px 0", display: "flex", flexDirection: "column", gap: 14 }}>
 
         {/* Приветствие */}

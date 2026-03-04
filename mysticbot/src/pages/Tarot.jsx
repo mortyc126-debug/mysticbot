@@ -37,7 +37,7 @@ function drawCards(count) {
 }
 
 export default function Tarot({ state, showToast }) {
-  const { user, canAccess, addLuck, addTarotReading, getContextForClaude,
+  const { user, canAccess, setCurrentPage, addLuck, addTarotReading, getContextForClaude,
           canDoReading, getReadingInfo, tarotHistory,
           markDailyCardUsed, addDailyEnergy, oracleMemory, getReferralCode,
           shopPurchases, useShopPurchase } = state;
@@ -160,7 +160,14 @@ export default function Tarot({ state, showToast }) {
 
   return (
     <div>
-      <AppHeader title="🃏 Гадание Таро" luckPoints={user.luck_points} streak={user.streak_days} />
+      <AppHeader
+        title="🃏 Гадание Таро"
+        luckPoints={user.luck_points}
+        streak={user.streak_days}
+        userTier={canAccess("premium") ? "premium" : canAccess("vip") ? "vip" : "free"}
+        onLuckAddClick={() => setCurrentPage("profile")}
+        onPlanClick={() => setCurrentPage("profile")}
+      />
 
       <div style={{ padding: "14px 14px 0", display: "flex", flexDirection: "column", gap: 14 }}>
 

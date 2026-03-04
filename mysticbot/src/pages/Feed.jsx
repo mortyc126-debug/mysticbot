@@ -198,7 +198,7 @@ function EmptyFeed() {
 
 // ── Основная страница ────────────────────────────────────
 export default function Feed({ state, showToast }) {
-  const { user } = state;
+  const { user, canAccess, setCurrentPage } = state;
   const [feed,    setFeed]    = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
@@ -227,6 +227,9 @@ export default function Feed({ state, showToast }) {
         title="✨ Моя лента"
         luckPoints={user?.luck_points ?? 0}
         streak={user?.streak_days ?? 0}
+        userTier={canAccess("premium") ? "premium" : canAccess("vip") ? "vip" : "free"}
+        onLuckAddClick={() => setCurrentPage("profile")}
+        onPlanClick={() => setCurrentPage("profile")}
       />
 
       {loading && (
