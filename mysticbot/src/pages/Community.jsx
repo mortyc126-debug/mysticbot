@@ -577,12 +577,11 @@ function getTodayRitual() {
 
 // ── Основной компонент ───────────────────────────────────────
 export default function Community({ state, showToast }) {
-  const { user, canAccess, setUnreadChats } = state;
+  const { user, canAccess, setUnreadChats, setCurrentPage } = state;
 
   const activeTier = getActiveTier(user);
   const myUserId   = getUserId();
   const myAlias    = getMysticalAlias(myUserId, user.sun_sign, activeTier);
-  const pulse      = getCollectivePulse();
   const darkMoon   = isDarkMoon();
   const myElement  = getElement(user.sun_sign);
   const myCircle   = getCircleMeta(user.sun_sign);
@@ -878,6 +877,8 @@ export default function Community({ state, showToast }) {
         luckPoints={user.luck_points}
         streak={user.streak_days}
         userTier={activeTier}
+        onLuckAddClick={() => setCurrentPage("profile")}
+        onPlanClick={() => setCurrentPage("profile")}
       />
 
       <div style={{ padding: "14px 14px 0", display: "flex", flexDirection: "column", gap: 14 }}>
@@ -986,40 +987,6 @@ export default function Community({ state, showToast }) {
             </div>
           )}
           <div style={{ fontSize: 16, color: "var(--text2)" }}>›</div>
-        </div>
-
-        {/* ── Коллективный пульс ───────────────────────────── */}
-        <SLabel>🫀 Пульс сообщества</SLabel>
-        <div style={{
-          background: `linear-gradient(135deg, ${pulse.color}18, ${pulse.color}08)`,
-          border: `1px solid ${pulse.color}35`,
-          borderRadius: 16, padding: "14px 16px",
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text)" }}>
-                {pulse.icon} {pulse.mood}
-              </div>
-              <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>
-                Настроение момента · меняется по времени суток
-              </div>
-            </div>
-            <div style={{
-              fontSize: 22, fontWeight: 900, color: pulse.color,
-              textShadow: `0 0 12px ${pulse.color}60`,
-            }}>
-              {pulse.energy}%
-            </div>
-          </div>
-          <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 20, height: 5, overflow: "hidden" }}>
-            <div style={{
-              height: "100%", borderRadius: 20,
-              background: `linear-gradient(90deg, ${pulse.color}, ${pulse.color}80)`,
-              width: `${pulse.energy}%`,
-              boxShadow: `0 0 8px ${pulse.color}60`,
-              transition: "width 1s ease",
-            }} />
-          </div>
         </div>
 
         {/* ── Твой Круг (стихия) ───────────────────────────── */}
@@ -1488,35 +1455,40 @@ export default function Community({ state, showToast }) {
             {/* Входящие — кто написал тебе */}
             {myThreads.incoming.length > 0 && (
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Написали тебе
+                </div>
+                <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 8, lineHeight: 1.5 }}>
+                  Эти анонимные пользователи нашли тебя и написали первыми — нажми, чтобы ответить
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {myThreads.incoming.map(t => (
                     <div
                       key={t.id}
-                      onClick={() => t.is_mutual && openChat({ telegram_id: t.from_id, alias: t.from_alias || "Анон", compatibility: t.compatibility })}
+                      onClick={() => openChat({ telegram_id: t.from_id, alias: t.from_alias || "Анон", compatibility: t.compatibility })}
                       style={{
-                        background: "var(--card)", border: `1px solid ${t.is_mutual ? "rgba(139,92,246,0.35)" : "var(--border)"}`,
+                        background: "var(--card)", border: `1px solid ${t.is_mutual ? "rgba(139,92,246,0.35)" : "rgba(139,92,246,0.2)"}`,
                         borderRadius: 14, padding: "12px 14px",
                         display: "flex", alignItems: "center", gap: 10,
-                        cursor: t.is_mutual ? "pointer" : "default",
+                        cursor: "pointer",
+                        boxShadow: t.is_mutual ? "0 0 8px rgba(139,92,246,0.1)" : "none",
                       }}
                     >
                       <div style={{
                         width: 42, height: 42, borderRadius: "50%", flexShrink: 0,
                         background: "rgba(139,92,246,0.12)", border: "1.5px solid rgba(139,92,246,0.3)",
                         display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
-                      }}>🌙</div>
+                      }}>💬</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>{t.from_alias}</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>
+                          {t.from_alias}
+                          {t.is_mutual && <span style={{ fontSize: 9, color: "#a78bfa", marginLeft: 6 }}>✦ взаимная</span>}
+                        </div>
                         <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 2 }}>
-                          {t.compatibility}% совместимость
-                          {t.is_mutual
-                            ? <span style={{ color: "#a78bfa", marginLeft: 6 }}>✦ взаимно — нажми чтобы ответить</span>
-                            : <span style={{ marginLeft: 6 }}>· ожидает ответа</span>}
+                          {t.compatibility}% совместимость · нажми чтобы ответить
                         </div>
                       </div>
+                      <div style={{ fontSize: 14, color: "var(--text2)" }}>›</div>
                     </div>
                   ))}
                 </div>
