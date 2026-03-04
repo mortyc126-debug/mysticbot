@@ -443,78 +443,59 @@ function MoonWidget() {
 }
 
 // ── Нить Судьбы: карточка совместимой души ───────────────────
-function SoulCard({ soul, onConnect, onChat, loading }) {
+// ── Карточка совместимой души (Топ-5) ────────────────────────
+function SoulCard({ soul, onChat, loading }) {
   const compatColor =
     soul.compatibility >= 80 ? "#22c55e" :
     soul.compatibility >= 60 ? "#fbbf24" : "#94a3b8";
 
   return (
-    <div style={{
-      background: "var(--card)",
-      border: "1px solid var(--border)",
-      borderRadius: 14, padding: "12px 14px",
-      display: "flex", alignItems: "center", gap: 10,
-    }}>
-      {/* Аватар стихии */}
+    <div
+      onClick={() => !loading && onChat(soul)}
+      style={{
+        background: "var(--card)", border: "1px solid var(--border)",
+        borderRadius: 14, padding: "12px 14px",
+        display: "flex", alignItems: "center", gap: 10,
+        cursor: loading ? "default" : "pointer", opacity: loading ? 0.6 : 1,
+        transition: "opacity 0.2s",
+      }}
+    >
+      {/* Аватар */}
       <div style={{
-        width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
+        width: 42, height: 42, borderRadius: "50%", flexShrink: 0,
         background: `conic-gradient(${compatColor}60, ${compatColor}20, ${compatColor}60)`,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 18, border: `1px solid ${compatColor}40`,
+        fontSize: 18, border: `1.5px solid ${compatColor}50`,
       }}>
         {TIER_ICONS[soul.tier] || "🌙"}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", wordBreak: "break-word" }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {soul.alias}
         </div>
         {soul.sign && (
-          <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 1 }}>
-            {soul.sign}
-          </div>
+          <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 1 }}>{soul.sign}</div>
+        )}
+        {soul.reason && (
+          <div style={{ fontSize: 9, color: compatColor, marginTop: 2, fontStyle: "italic" }}>{soul.reason}</div>
         )}
       </div>
-      {/* Совместимость */}
-      <div style={{ flexShrink: 0, textAlign: "center" }}>
-        <div style={{ fontSize: 15, fontWeight: 900, color: compatColor }}>
-          {soul.compatibility}%
-        </div>
-        <div style={{ fontSize: 8, color: "var(--text2)" }}>связь</div>
+      <div style={{ flexShrink: 0, textAlign: "right" }}>
+        <div style={{ fontSize: 16, fontWeight: 900, color: compatColor }}>{soul.compatibility}%</div>
+        <div style={{ fontSize: 9, color: "var(--text2)" }}>совм.</div>
       </div>
-      {/* Кнопка чата */}
-      {onChat && (
-        <button
-          onClick={() => onChat(soul)}
-          style={{
-            flexShrink: 0, padding: "6px 10px", borderRadius: 10,
-            background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)",
-            color: "#a78bfa", fontSize: 14, cursor: "pointer",
-          }}
-        >
-          💬
-        </button>
-      )}
-      {/* Кнопка нити */}
-      {onConnect && (
-        <button
-          onClick={() => onConnect(soul)}
-          disabled={loading}
-          style={{
-            flexShrink: 0, padding: "6px 12px", borderRadius: 10,
-            background: "var(--accent)", color: "white",
-            border: "none", fontSize: 11, fontWeight: 700,
-            cursor: loading ? "default" : "pointer",
-            opacity: loading ? 0.6 : 1,
-          }}
-        >
-          Нить
-        </button>
-      )}
+      <div style={{
+        flexShrink: 0, padding: "6px 12px", borderRadius: 10,
+        background: "var(--accent)", color: "white",
+        fontSize: 11, fontWeight: 700,
+      }}>
+        Написать
+      </div>
     </div>
   );
 }
 
-// ── Карточка активной нити (исходящей) ───────────────────────
+// ── Карточка активного чата (нити) ───────────────────────────
 function ThreadCard({ thread, onDelete, onChat }) {
   const daysLeft = Math.max(0, Math.round(
     (new Date(thread.expires_at) - Date.now()) / (24 * 60 * 60 * 1000)
@@ -524,65 +505,47 @@ function ThreadCard({ thread, onDelete, onChat }) {
     thread.compatibility >= 60 ? "#fbbf24" : "#94a3b8";
 
   return (
-    <div style={{
-      background: "var(--card)",
-      border: `1px solid ${thread.is_mutual ? "rgba(139,92,246,0.4)" : "var(--border)"}`,
-      borderRadius: 14, padding: "12px 14px",
-      position: "relative",
-      boxShadow: thread.is_mutual ? "0 0 12px rgba(139,92,246,0.15)" : "none",
-    }}>
-      {thread.is_mutual && (
-        <div style={{
-          position: "absolute", top: 8, right: 8,
-          fontSize: 8, fontWeight: 700, color: "#a78bfa",
-          background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.3)",
-          borderRadius: 5, padding: "1px 5px",
-        }}>
-          ✦ Взаимная
-        </div>
-      )}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: thread.signal ? 8 : 0 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", wordBreak: "break-word" }}>
-            {thread.to_alias}
-          </div>
-          <div style={{ fontSize: 10, color: "var(--text2)", display: "flex", gap: 8, marginTop: 2 }}>
-            <span style={{ color: compatColor }}>{thread.compatibility}% связь</span>
-            <span>·</span>
-            <span>{daysLeft} {daysLeft === 1 ? "день" : "дн"}</span>
-          </div>
-        </div>
-        {onChat && (
-          <button
-            onClick={() => onChat(thread)}
-            style={{
-              flexShrink: 0, padding: "4px 8px", borderRadius: 8,
-              background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)",
-              color: "#a78bfa", fontSize: 12, cursor: "pointer",
-            }}
-          >
-            💬
-          </button>
-        )}
-        <button
-          onClick={() => onDelete(thread.to_id)}
-          style={{
-            flexShrink: 0, padding: "4px 8px", borderRadius: 8,
-            background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
-            color: "#f87171", fontSize: 10, cursor: "pointer",
-          }}
-        >
-          Оборвать
-        </button>
+    <div
+      onClick={() => onChat && onChat(thread)}
+      style={{
+        background: "var(--card)",
+        border: `1px solid ${thread.is_mutual ? "rgba(139,92,246,0.35)" : "var(--border)"}`,
+        borderRadius: 14, padding: "12px 14px",
+        display: "flex", alignItems: "center", gap: 10,
+        cursor: "pointer",
+        boxShadow: thread.is_mutual ? "0 0 10px rgba(139,92,246,0.12)" : "none",
+      }}
+    >
+      {/* Аватар */}
+      <div style={{
+        width: 42, height: 42, borderRadius: "50%", flexShrink: 0,
+        background: `conic-gradient(${compatColor}60, ${compatColor}20, ${compatColor}60)`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 18, border: `1.5px solid ${compatColor}50`,
+      }}>
+        💬
       </div>
-      {thread.signal && (
-        <div style={{
-          fontSize: 11, color: "var(--text2)", fontStyle: "italic",
-          background: "var(--bg3)", borderRadius: 8, padding: "6px 10px",
-        }}>
-          «{thread.signal}»
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {thread.to_alias}
+          {thread.is_mutual && <span style={{ fontSize: 9, color: "#a78bfa", marginLeft: 6 }}>✦ взаимная</span>}
         </div>
-      )}
+        <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 2 }}>
+          <span style={{ color: compatColor }}>{thread.compatibility}%</span>
+          <span style={{ margin: "0 4px" }}>·</span>
+          <span>{daysLeft} {daysLeft === 1 ? "день" : "дн."}</span>
+        </div>
+      </div>
+      <button
+        onClick={e => { e.stopPropagation(); onDelete(thread.to_id); }}
+        style={{
+          flexShrink: 0, padding: "4px 8px", borderRadius: 8,
+          background: "transparent", border: "1px solid rgba(239,68,68,0.2)",
+          color: "#f87171", fontSize: 10, cursor: "pointer",
+        }}
+      >
+        ✕
+      </button>
     </div>
   );
 }
@@ -655,9 +618,6 @@ export default function Community({ state, showToast }) {
   const [myThreads,    setMyThreads]    = useState({ outgoing: [], incoming: [] });
   const [souls,        setSouls]        = useState([]);
   const [threadsLoading, setThreadsLoading] = useState(false);
-  const [connectTarget, setConnectTarget] = useState(null);
-  const [threadSignal,  setThreadSignal]  = useState("");
-  const [connectLoading, setConnectLoading] = useState(false);
   // ── Анонимный чат Нитей ──────────────────────────────────
   const [activeChat,    setActiveChat]    = useState(null);   // { telegram_id, alias, compatibility }
   const [chatMessages,  setChatMessages]  = useState([]);
@@ -852,34 +812,6 @@ export default function Community({ state, showToast }) {
     setThreadsLoading(false);
   };
 
-  // ── Нити Судьбы: протянуть нить ──────────────────────────
-  const handleConnect = async (soul) => {
-    setConnectTarget(soul);
-    setThreadSignal("");
-  };
-
-  const handleConfirmConnect = async () => {
-    if (!connectTarget || connectLoading) return;
-    setConnectLoading(true);
-    const res = await createThread(connectTarget.telegram_id, threadSignal);
-    setConnectLoading(false);
-
-    if (res.error) { showToast("❌ " + res.error); return; }
-
-    setConnectTarget(null);
-    // Обновляем список нитей
-    const threadsData = await fetchMyThreads();
-    if (threadsData) setMyThreads(threadsData);
-    // Убираем из списка доступных душ
-    setSouls(prev => prev.filter(s => s.telegram_id !== connectTarget.telegram_id));
-
-    if (res.is_mutual) {
-      showToast("✦ Взаимная нить! Вы уже соединены");
-    } else {
-      showToast(`🔗 Нить протянута (${res.compatibility}% совместимость)`);
-    }
-  };
-
   // ── Нити Судьбы: оборвать ────────────────────────────────
   const handleDeleteThread = async (toId) => {
     await deleteThread(toId);
@@ -891,13 +823,25 @@ export default function Community({ state, showToast }) {
   };
 
   // ── Анонимный чат: открыть ───────────────────────────────
-  const openChat = async (soul) => {
+  // isNew=true — новая душа из discover (нить ещё не создана)
+  const openChat = async (soul, isNew = false) => {
+    if (isNew) {
+      // Создаём нить автоматически, не ждём ответа (fire & forget)
+      createThread(soul.telegram_id, "").then(res => {
+        if (!res.error) {
+          fetchMyThreads().then(d => { if (d) setMyThreads(d); });
+          setSouls(prev => prev.filter(s => String(s.telegram_id) !== String(soul.telegram_id)));
+        }
+      });
+    }
+
     setActiveChat(soul);
     setChatMessages([]);
     setChatInput("");
+
     const data = await fetchChatMessages(soul.telegram_id);
     if (data && data.messages) setChatMessages(data.messages);
-    // Поллинг каждые 5 секунд
+
     if (chatPollRef.current) clearInterval(chatPollRef.current);
     chatPollRef.current = setInterval(async () => {
       const d = await fetchChatMessages(soul.telegram_id);
@@ -919,7 +863,7 @@ export default function Community({ state, showToast }) {
     setChatSending(true);
     const res = await sendChatMessage(activeChat.telegram_id, text);
     setChatSending(false);
-    if (res.error) { showToast("❌ " + res.error); return; }
+    if (res.error) { setChatInput(text); showToast("❌ " + res.error); return; }
     // Обновляем сообщения
     const d = await fetchChatMessages(activeChat.telegram_id);
     if (d && d.messages) setChatMessages(d.messages);
@@ -1433,53 +1377,54 @@ export default function Community({ state, showToast }) {
       >
         {/* ── Вид чата ── */}
         {activeChat ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-            {/* Заголовок чата */}
+          {/* ── Вид чата ── */}
+          <div style={{ display: "flex", flexDirection: "column", height: 440 }}>
+            {/* Заголовок */}
             <div style={{
-              display: "flex", alignItems: "center", gap: 10, marginBottom: 12,
-              background: "var(--bg3)", borderRadius: 12, padding: "10px 12px",
+              flexShrink: 0,
+              display: "flex", alignItems: "center", gap: 10, marginBottom: 10,
+              background: "var(--bg3)", borderRadius: 12, padding: "9px 12px",
             }}>
               <button onClick={closeChat} style={{
                 background: "none", border: "none", color: "var(--text2)",
-                fontSize: 18, cursor: "pointer", padding: 0, lineHeight: 1,
+                fontSize: 20, cursor: "pointer", padding: "0 4px", lineHeight: 1,
               }}>←</button>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{activeChat.alias}</div>
-                <div style={{ fontSize: 10, color: "var(--text2)" }}>{activeChat.compatibility}% совместимость · анонимный чат</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeChat.alias}</div>
+                <div style={{ fontSize: 10, color: "var(--text2)" }}>{activeChat.compatibility}% · анонимный чат</div>
               </div>
             </div>
-            {/* Сообщения */}
+            {/* Лента сообщений */}
             <div style={{
-              minHeight: 200, maxHeight: 320, overflowY: "auto",
+              flex: 1, minHeight: 0, overflowY: "auto",
               display: "flex", flexDirection: "column", gap: 6,
-              marginBottom: 10, padding: "4px 0",
+              padding: "2px 0 6px",
             }}>
               {chatMessages.length === 0 ? (
-                <div style={{ textAlign: "center", color: "var(--text2)", fontSize: 12, padding: "40px 0" }}>
-                  Начни разговор первым ✨
+                <div style={{ margin: "auto", textAlign: "center", color: "var(--text2)", fontSize: 12, padding: "20px 0" }}>
+                  Напиши первое сообщение ✨
                 </div>
               ) : chatMessages.map(msg => {
                 const isMe = String(msg.sender_id) === String(getUserId());
                 return (
                   <div key={msg.id} style={{
                     alignSelf: isMe ? "flex-end" : "flex-start",
-                    maxWidth: "80%",
+                    maxWidth: "78%",
                     background: isMe ? "rgba(139,92,246,0.18)" : "var(--bg3)",
                     border: `1px solid ${isMe ? "rgba(139,92,246,0.3)" : "var(--border)"}`,
-                    borderRadius: isMe ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-                    padding: "8px 12px",
+                    borderRadius: isMe ? "14px 4px 14px 14px" : "4px 14px 14px 14px",
+                    padding: "8px 11px",
                   }}>
-                    {!isMe && <div style={{ fontSize: 9, color: "var(--text2)", marginBottom: 3 }}>{msg.sender_alias}</div>}
-                    <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.5 }}>{msg.text}</div>
-                    <div style={{ fontSize: 9, color: "var(--text2)", marginTop: 2, textAlign: "right" }}>
+                    <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.5, wordBreak: "break-word" }}>{msg.text}</div>
+                    <div style={{ fontSize: 9, color: "var(--text2)", marginTop: 3, textAlign: "right" }}>
                       {new Date(msg.created_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
                     </div>
                   </div>
                 );
               })}
             </div>
-            {/* Ввод сообщения */}
-            <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+            {/* Поле ввода */}
+            <div style={{ flexShrink: 0, display: "flex", gap: 8, alignItems: "flex-end", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
               <textarea
                 value={chatInput}
                 onChange={e => setChatInput(e.target.value.slice(0, 500))}
@@ -1488,31 +1433,44 @@ export default function Community({ state, showToast }) {
                 disabled={chatSending}
                 rows={2}
                 style={{
-                  flex: 1, padding: "10px 12px", borderRadius: 12,
+                  flex: 1, minWidth: 0,
+                  padding: "10px 12px", borderRadius: 12,
                   background: "var(--bg3)", border: "1px solid var(--border)",
                   color: "var(--text)", fontSize: 13, resize: "none",
                   outline: "none", fontFamily: "inherit", boxSizing: "border-box",
+                  lineHeight: 1.4,
                 }}
               />
-              <Btn size="sm" onClick={handleSendChatMessage} disabled={!chatInput.trim() || chatSending}
-                style={{ minWidth: 60, height: 44 }}>
-                {chatSending ? "…" : "→"}
-              </Btn>
+              <button
+                onClick={handleSendChatMessage}
+                disabled={!chatInput.trim() || chatSending}
+                style={{
+                  flexShrink: 0, width: 44, height: 44,
+                  borderRadius: 12, border: "none",
+                  background: chatInput.trim() && !chatSending ? "var(--accent)" : "var(--bg3)",
+                  color: chatInput.trim() && !chatSending ? "white" : "var(--text2)",
+                  fontSize: 18, cursor: chatInput.trim() && !chatSending ? "pointer" : "default",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "background 0.2s",
+                }}
+              >
+                {chatSending ? "…" : "↑"}
+              </button>
             </div>
           </div>
         ) : threadsLoading ? (
           <div style={{ textAlign: "center", padding: "30px 0", color: "var(--text2)" }}>
             <div style={{ fontSize: 28, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }}>🕸️</div>
-            <div style={{ fontSize: 12 }}>Ищем кармические связи…</div>
+            <div style={{ fontSize: 12 }}>Ищем совместимые души…</div>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-            {/* Активные нити — с кнопкой чата */}
+            {/* Активные чаты (твои нити) */}
             {myThreads.outgoing.length > 0 && (
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Твои нити ({myThreads.outgoing.length}/5)
+                  Твои чаты ({myThreads.outgoing.length}/5)
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {myThreads.outgoing.map(t => (
@@ -1527,139 +1485,72 @@ export default function Community({ state, showToast }) {
               </div>
             )}
 
-            {/* Входящие нити */}
+            {/* Входящие — кто написал тебе */}
             {myThreads.incoming.length > 0 && (
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  К тебе тянутся
+                  Написали тебе
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {myThreads.incoming.map(t => (
-                    <div key={t.id} style={{
-                      background: "var(--card)", border: "1px solid var(--border)",
-                      borderRadius: 14, padding: "12px 14px",
-                      display: "flex", alignItems: "center", gap: 10,
-                    }}>
-                      <div style={{ flex: 1 }}>
+                    <div
+                      key={t.id}
+                      onClick={() => t.is_mutual && openChat({ telegram_id: t.from_id, alias: t.from_alias || "Анон", compatibility: t.compatibility })}
+                      style={{
+                        background: "var(--card)", border: `1px solid ${t.is_mutual ? "rgba(139,92,246,0.35)" : "var(--border)"}`,
+                        borderRadius: 14, padding: "12px 14px",
+                        display: "flex", alignItems: "center", gap: 10,
+                        cursor: t.is_mutual ? "pointer" : "default",
+                      }}
+                    >
+                      <div style={{
+                        width: 42, height: 42, borderRadius: "50%", flexShrink: 0,
+                        background: "rgba(139,92,246,0.12)", border: "1.5px solid rgba(139,92,246,0.3)",
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
+                      }}>🌙</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>{t.from_alias}</div>
                         <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 2 }}>
                           {t.compatibility}% совместимость
-                          {t.is_mutual && <span style={{ color: "#a78bfa", marginLeft: 6 }}>✦ Взаимная</span>}
+                          {t.is_mutual
+                            ? <span style={{ color: "#a78bfa", marginLeft: 6 }}>✦ взаимно — нажми чтобы ответить</span>
+                            : <span style={{ marginLeft: 6 }}>· ожидает ответа</span>}
                         </div>
                       </div>
-                      {t.is_mutual && (
-                        <button
-                          onClick={() => openChat({ telegram_id: t.from_id, alias: t.from_alias || "Анон", compatibility: t.compatibility })}
-                          style={{
-                            flexShrink: 0, padding: "4px 8px", borderRadius: 8,
-                            background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)",
-                            color: "#a78bfa", fontSize: 12, cursor: "pointer",
-                          }}
-                        >
-                          💬
-                        </button>
-                      )}
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Совместимые души */}
+            {/* Найти новых — кнопка одна: Написать */}
             {myThreads.outgoing.length < 5 && souls.length > 0 && (
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Кармически близкие души
+                  Найти собеседника
                 </div>
                 <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 10, lineHeight: 1.5 }}>
-                  Топ-5 анонимных пользователей с высокой совместимостью. Протяни нить или начни анонимный чат.
+                  Топ-5 анонимных пользователей по совместимости. Нажми — и чат откроется сразу.
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {souls.map(soul => (
                     <SoulCard
                       key={soul.telegram_id}
                       soul={soul}
-                      onConnect={handleConnect}
-                      onChat={s => openChat({ telegram_id: s.telegram_id, alias: s.alias, compatibility: s.compatibility })}
-                      loading={connectLoading}
+                      onChat={s => openChat({ telegram_id: s.telegram_id, alias: s.alias, compatibility: s.compatibility }, true)}
                     />
                   ))}
                 </div>
               </div>
             )}
 
-            {myThreads.outgoing.length === 0 && souls.length === 0 && (
+            {myThreads.outgoing.length === 0 && souls.length === 0 && myThreads.incoming.length === 0 && (
               <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text2)" }}>
                 <div style={{ fontSize: 32, marginBottom: 8 }}>🌑</div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>Пока нет подходящих душ</div>
-                <div style={{ fontSize: 11, marginTop: 4 }}>Возвращайся позже — мир расширяется</div>
+                <div style={{ fontSize: 11, marginTop: 4, lineHeight: 1.5 }}>Заполни профиль и пройди опросники — алгоритм найдёт тебе собеседника</div>
               </div>
             )}
-          </div>
-        )}
-      </Modal>
-
-      {/* ══════════════════════════════════════════════════════
-          Модальное окно: подтверждение нити + сигнал
-      ══════════════════════════════════════════════════════ */}
-      <Modal
-        open={!!connectTarget}
-        onClose={() => { if (!connectLoading) setConnectTarget(null); }}
-        title="🔗 Протянуть нить"
-      >
-        {connectTarget && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{
-              background: "var(--bg3)", borderRadius: 12, padding: "12px 14px",
-              display: "flex", alignItems: "center", gap: 10,
-            }}>
-              <div style={{ fontSize: 24 }}>{TIER_ICONS[connectTarget.tier] || "🌙"}</div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{connectTarget.alias}</div>
-                <div style={{ fontSize: 10, color: "var(--text2)" }}>
-                  {connectTarget.sign} · {connectTarget.compatibility}% совместимость
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 6 }}>
-                Анонимное послание (необязательно, до 100 символов):
-              </div>
-              <textarea
-                value={threadSignal}
-                onChange={e => setThreadSignal(e.target.value.slice(0, 100))}
-                placeholder="Слово во Вселенную…"
-                disabled={connectLoading}
-                style={{
-                  width: "100%", minHeight: 70, padding: "10px 12px",
-                  borderRadius: 10, background: "var(--bg3)",
-                  border: "1px solid var(--border)", color: "var(--text)",
-                  fontSize: 13, resize: "none", outline: "none",
-                  fontFamily: "inherit", boxSizing: "border-box",
-                }}
-                onFocus={e => e.target.style.borderColor = "rgba(139,92,246,0.5)"}
-                onBlur={e => e.target.style.borderColor = "var(--border)"}
-              />
-              <div style={{ fontSize: 9, color: "var(--text2)", textAlign: "right", marginTop: 2 }}>
-                {threadSignal.length} / 100
-              </div>
-            </div>
-
-            <div style={{ fontSize: 10, color: "var(--text2)", lineHeight: 1.5 }}>
-              Нить анонимна — получатель не узнает кто ты. Она исчезнет через 7 дней.
-            </div>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <Btn variant="ghost" size="sm" style={{ flex: 1 }}
-                onClick={() => setConnectTarget(null)} disabled={connectLoading}>
-                Отмена
-              </Btn>
-              <Btn size="sm" style={{ flex: 2 }}
-                onClick={handleConfirmConnect} disabled={connectLoading}>
-                {connectLoading ? "Тянем нить…" : "🔗 Протянуть нить"}
-              </Btn>
-            </div>
           </div>
         )}
       </Modal>
