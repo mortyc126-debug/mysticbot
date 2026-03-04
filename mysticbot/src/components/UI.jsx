@@ -121,12 +121,12 @@ export function AppHeader({ title, luckPoints, streak, onLuckClick, onLuckAddCli
       borderBottom: "1px solid var(--border)",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <div style={{ fontSize: 19, fontWeight: 800, background: "linear-gradient(135deg,#8b5cf6,#f59e0b)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+        <div style={{ fontSize: 19, fontWeight: 800, background: "linear-gradient(135deg,#8b5cf6,#f59e0b)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0, flex: 1 }}>
           {title}
         </div>
 
         {/* Правый блок: план + удача */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginLeft: 8 }}>
 
           {/* Бейдж плана с кнопкой + */}
           {userTier && (
